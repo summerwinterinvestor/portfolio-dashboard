@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       where: holdingId ? { holdingId } : undefined,
       include: {
         holding: {
-          select: { ticker: true, name: true },
+          select: { ticker: true, name: true, currency: true },
         },
       },
       orderBy: { paidDate: 'desc' },

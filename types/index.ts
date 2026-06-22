@@ -33,6 +33,7 @@ export interface Trade {
   price: number;
   tradeDate: string;
   thesis: string | null;
+  fee: number | null;
   createdAt: string;
   holding?: Pick<Holding, 'ticker' | 'name' | 'market' | 'currency'>;
 }
@@ -43,7 +44,7 @@ export interface Dividend {
   amount: number;
   paidDate: string;
   createdAt: string;
-  holding?: Pick<Holding, 'ticker' | 'name'>;
+  holding?: Pick<Holding, 'ticker' | 'name' | 'currency'>;
 }
 
 export interface Asset {

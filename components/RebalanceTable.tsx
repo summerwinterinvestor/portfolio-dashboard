@@ -36,6 +36,12 @@ export default function RebalanceTable({ rows, totalValueKRW }: Props) {
   const [inputValue, setInputValue] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const sortedRows = [...rows].sort((a, b) => {
+    const absA = a.gap !== null ? Math.abs(a.gap) : -1;
+    const absB = b.gap !== null ? Math.abs(b.gap) : -1;
+    return absB - absA;
+  });
+
   if (rows.length === 0) {
     return (
       <div className="bg-gray-900 rounded-xl p-12 text-center text-gray-600 text-sm">
@@ -77,7 +83,7 @@ export default function RebalanceTable({ rows, totalValueKRW }: Props) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {sortedRows.map((row) => {
               const { ticker, name, market, currency, currentValueKRW, currentWeight, targetWeight, gap, priceOk, currentPrice } = row;
               const adjustKRW =
                 gap !== null && totalValueKRW > 0

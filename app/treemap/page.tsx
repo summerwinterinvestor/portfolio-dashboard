@@ -115,14 +115,16 @@ export default async function TreemapPage() {
 
   const totalValueKRW = Array.from(byTicker.values()).reduce((s, v) => s + v.valueKRW, 0);
 
-  const items: TreemapItem[] = Array.from(byTicker.entries()).map(([ticker, v]) => ({
-    ticker,
-    name: v.name,
-    valueKRW: v.valueKRW,
-    gainLossRate: v.costBasisKRW > 0 ? ((v.valueKRW - v.costBasisKRW) / v.costBasisKRW) * 100 : 0,
-    weight: totalValueKRW > 0 ? (v.valueKRW / totalValueKRW) * 100 : 0,
-    sector: v.sector,
-  }));
+  const items: TreemapItem[] = Array.from(byTicker.entries())
+    .map(([ticker, v]) => ({
+      ticker,
+      name: v.name,
+      valueKRW: v.valueKRW,
+      gainLossRate: v.costBasisKRW > 0 ? ((v.valueKRW - v.costBasisKRW) / v.costBasisKRW) * 100 : 0,
+      weight: totalValueKRW > 0 ? (v.valueKRW / totalValueKRW) * 100 : 0,
+      sector: v.sector,
+    }))
+    .sort((a, b) => b.weight - a.weight);
 
   const hasData = items.length > 0;
   const showCards = items.length < 3;

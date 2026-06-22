@@ -45,6 +45,7 @@ model Trade {
   price     Float
   tradeDate DateTime
   thesis    String?
+  fee       Float?   // 매도 수수료 (선택, 해외주식 등)
   createdAt DateTime @default(now())
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import type { Trade, Holding } from '@/types';
 import HoldingPicker from '@/components/HoldingPicker';
 import JournalStockPicker from '@/components/JournalStockPicker';
@@ -21,9 +22,15 @@ function computeRealizedPnL(trades: Trade[]): Record<string, PnLEntry> {
   const result: Record<string, PnLEntry> = {};
 
   for (const holdingTrades of Object.values(byHolding)) {
-    const sorted = [...holdingTrades].sort(
-      (a, b) => new Date(a.tradeDate).getTime() - new Date(b.tradeDate).getTime()
-    );
+    const sorted = [...holdingTrades].sort((a, b) => {
+      const da = new Date(a.tradeDate).getTime();
+      const db = new Date(b.tradeDate).getTime();
+      if (da !== db) return da - db;
+      // 동일 날짜: 매수 먼저 처리 (수도결제 이동평균 규칙)
+      if (a.type === 'BUY' && b.type === 'SELL') return -1;
+      if (a.type === 'SELL' && b.type === 'BUY') return 1;
+      return 0;
+    });
 
     let runningQty = 0;
     let runningTotalCost = 0;
@@ -34,8 +41,8 @@ function computeRealizedPnL(trades: Trade[]): Record<string, PnLEntry> {
         runningQty += trade.quantity;
       } else if (trade.type === 'SELL' && runningQty > 0) {
         const avgCost = runningTotalCost / runningQty;
-        const realizedPnl = (trade.price - avgCost) * trade.quantity;
-        const pnlPct = (trade.price - avgCost) / avgCost * 100;
+        const realizedPnl = (trade.price - avgCost) * trade.quantity - (trade.fee ?? 0);
+        const pnlPct = ((trade.price - avgCost) * trade.quantity - (trade.fee ?? 0)) / (avgCost * trade.quantity) * 100;
         result[trade.id] = { realizedPnl, pnlPct, avgCost };
         runningQty = Math.max(0, runningQty - trade.quantity);
         runningTotalCost = runningQty * avgCost;
@@ -46,7 +53,7 @@ function computeRealizedPnL(trades: Trade[]): Record<string, PnLEntry> {
   return result;
 }
 
-type Period = 'all' | 'week' | 'month' | 'quarter' | 'year';
+type Period = 'all' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 
 const PERIOD_LABELS: Record<Period, string> = {
   all: '전체',
@@ -54,14 +61,22 @@ const PERIOD_LABELS: Record<Period, string> = {
   month: '이번 달',
   quarter: '이번 분기',
   year: '올해',
+  custom: '직접 설정',
 };
 
-function isInPeriod(dateStr: string, period: Period): boolean {
+function isInPeriod(dateStr: string, period: Period, customFrom?: string, customTo?: string): boolean {
   if (period === 'all') return true;
   const d = new Date(dateStr.split('T')[0]);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
+  if (period === 'custom') {
+    const from = customFrom ? new Date(customFrom) : null;
+    const to = customTo ? new Date(customTo) : null;
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  }
   if (period === 'week') {
     const dow = today.getDay();
     const diffToMon = dow === 0 ? 6 : dow - 1;
@@ -89,6 +104,7 @@ type TradeForm = {
   type: 'BUY' | 'SELL';
   quantity: string;
   price: string;
+  fee: string;
   tradeDate: string;
   thesis: string;
 };
@@ -98,6 +114,7 @@ const emptyForm = (): TradeForm => ({
   type: 'BUY',
   quantity: '',
   price: '',
+  fee: '',
   tradeDate: new Date().toISOString().split('T')[0],
   thesis: '',
 });
@@ -124,6 +141,8 @@ export default function JournalPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [period, setPeriod] = useState<Period>('all');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [usdKrw, setUsdKrw] = useState(0);
   const [typeFilter, setTypeFilter] = useState<'all' | 'BUY' | 'SELL'>('all');
   const [pageSize, setPageSize] = useState<10 | 30 | 50>(10);
@@ -168,6 +187,7 @@ export default function JournalPage() {
         type: form.type,
         quantity: parseFloat(form.quantity),
         price: parseFloat(form.price),
+        fee: form.fee ? parseFloat(form.fee) : null,
         tradeDate: form.tradeDate,
         thesis: form.thesis || null,
       };
@@ -204,6 +224,7 @@ export default function JournalPage() {
       type: trade.type,
       quantity: String(trade.quantity),
       price: String(trade.price),
+      fee: String(trade.fee ?? ''),
       tradeDate: trade.tradeDate.split('T')[0],
       thesis: trade.thesis ?? '',
     });
@@ -236,7 +257,7 @@ export default function JournalPage() {
 
     for (const trade of trades) {
       if (trade.type !== 'SELL') continue;
-      if (!isInPeriod(trade.tradeDate, period)) continue;
+      if (!isInPeriod(trade.tradeDate, period, customFrom, customTo)) continue;
       const pnl = pnlMap[trade.id];
       if (!pnl) continue;
 
@@ -264,7 +285,7 @@ export default function JournalPage() {
     const tickerList = Object.entries(byTicker).sort((a, b) => Math.abs(b[1].pnl) - Math.abs(a[1].pnl));
 
     return { totalKRW, totalUSD, totalCombinedKRW, wins, losses, tickerList, hasUSD };
-  }, [trades, pnlMap, holdings, period, usdKrw]);
+  }, [trades, pnlMap, holdings, period, customFrom, customTo, usdKrw]);
 
   const allHasSells = trades.some((t) => t.type === 'SELL');
 
@@ -284,15 +305,28 @@ export default function JournalPage() {
   const totalPages = Math.ceil(filteredTrades.length / pageSize);
   const paginatedTrades = filteredTrades.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
+  const tradedHoldings = useMemo(() => {
+    const tradedIds = new Set(trades.map((t) => t.holdingId));
+    return holdings.filter((h) => tradedIds.has(h.id));
+  }, [holdings, trades]);
+
   const holdingName = (id: string) =>
     holdings.find((h) => h.id === id)?.name ?? id;
 
   const pnlColor = (n: number) => n >= 0 ? 'text-green-400' : 'text-red-400';
-  const pnlSign = (n: number) => n >= 0 ? '+' : '';
+  const pnlSign = (n: number) => n >= 0 ? '+' : '-';
 
   return (
     <div>
-      <h1 className="text-lg font-semibold text-white mb-6">매매일지</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-lg font-semibold text-white">매매일지</h1>
+        <Link
+          href="/journal/import"
+          className="px-3 py-1.5 text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors"
+        >
+          CSV 가져오기
+        </Link>
+      </div>
 
       {/* 입력 폼 */}
       <div className="bg-gray-900 rounded-xl p-5 mb-6">
@@ -306,6 +340,7 @@ export default function JournalPage() {
               <label className="block text-xs text-gray-500 mb-1">종목 *</label>
               <JournalStockPicker
                 holdings={holdings}
+                recentHoldings={tradedHoldings}
                 value={form.holdingId}
                 onChange={(id) => setForm((f) => ({ ...f, holdingId: id }))}
                 onNewHolding={(h) => setHoldings((prev) => [...prev, h])}
@@ -376,6 +411,22 @@ export default function JournalPage() {
               />
             </div>
 
+            {/* 수수료 */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                수수료 (선택)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={form.fee}
+                onChange={(e) => setForm((f) => ({ ...f, fee: e.target.value }))}
+                placeholder="0"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
             {/* 거래 금액 미리보기 */}
             <div className="flex items-end">
               <div className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2">
@@ -436,21 +487,40 @@ export default function JournalPage() {
       {allHasSells && (
         <div className="mb-6">
           {/* 기간 토글 */}
-          <div className="flex items-center gap-1 mb-4 bg-gray-900 rounded-xl p-1 w-fit">
-            {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                  period === p
-                    ? 'bg-gray-700 text-white'
-                    : 'text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                {PERIOD_LABELS[p]}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <div className="flex items-center gap-1 bg-gray-900 rounded-xl p-1">
+              {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPeriod(p)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                    period === p
+                      ? 'bg-gray-700 text-white'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  {PERIOD_LABELS[p]}
+                </button>
+              ))}
+            </div>
+            {period === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                />
+                <span className="text-xs text-gray-500">~</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            )}
           </div>
 
           {/* 요약 카드 4개 */}
@@ -716,6 +786,14 @@ export default function JournalPage() {
                         </div>
                       );
                     })()}
+                    {trade.fee != null && trade.fee > 0 && (
+                      <p className="mt-1 text-xs text-gray-500 private-value">
+                        수수료{' '}
+                        {holding?.currency === 'USD'
+                          ? `$${trade.fee.toFixed(2)}`
+                          : `₩${fmt(Math.round(trade.fee))}`}
+                      </p>
+                    )}
                     {trade.thesis && (
                       <p className="mt-2 text-xs text-gray-400 bg-gray-800/60 rounded px-2 py-1.5 whitespace-pre-wrap">
                         {trade.thesis}

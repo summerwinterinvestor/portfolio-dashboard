@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { holdingId, type, quantity, price, tradeDate, thesis } = body;
+    const { holdingId, type, quantity, price, tradeDate, thesis, fee } = body;
 
     if (!holdingId || !type || quantity == null || price == null || !tradeDate) {
       return NextResponse.json(
@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
         price: Number(price),
         tradeDate: new Date(tradeDate),
         thesis: thesis ?? null,
+        fee: fee != null ? Number(fee) : null,
       },
     });
     return NextResponse.json(trade, { status: 201 });

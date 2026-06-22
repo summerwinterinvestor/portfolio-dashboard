@@ -36,6 +36,7 @@ export default function RootLayout({
     <html
       lang="ko"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('privacy')==='on')document.documentElement.classList.add('privacy-on')}catch(e){}` }} />

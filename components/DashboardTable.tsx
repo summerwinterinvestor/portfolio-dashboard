@@ -225,7 +225,7 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
                               <div className="flex flex-col">
                                 <span className="font-medium text-white">{g.name}</span>
                                 <span className="text-xs text-gray-500">
-                                  {g.ticker} · {g.market} · {g.currency}
+                                  {g.ticker} · {g.market} · {g.currency} · <span className="private-value">{fmt(g.rows.reduce((s, r) => s + r.holding.quantity, 0))}주</span>
                                   {multi && <span className="text-blue-500 ml-1">({g.rows.length}개 계좌)</span>}
                                 </span>
                               </div>
@@ -335,7 +335,7 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
                                   <div className="flex flex-col">
                                     <span className="font-medium text-white">{row.holding.name}</span>
                                     <span className="text-xs text-gray-500">
-                                      {row.holding.ticker} · {row.holding.currency}
+                                      {row.holding.ticker} · {row.holding.currency} · <span className="private-value">{fmt(row.holding.quantity)}주</span>
                                       {row.holding.account && (
                                         <span className="ml-1" style={{ color: brokerColor(row.holding.account.broker) }}>
                                           · {row.holding.account.broker} {row.holding.account.name}
@@ -412,7 +412,7 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
                                   <div className="flex flex-col">
                                     <span className="font-medium text-white">{row.holding.name}</span>
                                     <span className="text-xs text-gray-500">
-                                      {row.holding.ticker} · {row.holding.market} · {row.holding.currency}
+                                      {row.holding.ticker} · {row.holding.market} · {row.holding.currency} · <span className="private-value">{fmt(row.holding.quantity)}주</span>
                                     </span>
                                   </div>
                                 </td>
