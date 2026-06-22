@@ -197,3 +197,7 @@ components/
 ## 라이선스
 
 MIT
+
+---
+
+Made by [여름겨울](https://blog.naver.com/summer_winter_nh)
