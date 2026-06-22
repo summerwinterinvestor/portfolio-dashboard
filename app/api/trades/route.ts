@@ -34,6 +34,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const tradeDateObj = new Date(tradeDate);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    if (tradeDateObj > todayEnd) {
+      return NextResponse.json({ error: '미래 날짜로 거래를 입력할 수 없습니다.' }, { status: 400 });
+    }
+
+    if (type === 'SELL') {
+      const existingTrades = await prisma.trade.findMany({
+        where: { holdingId },
+        select: { type: true, quantity: true },
+      });
+      const currentQty = existingTrades.reduce(
+        (sum, t) => (t.type === 'BUY' ? sum + t.quantity : sum - t.quantity),
+        0
+      );
+      if (Number(quantity) > currentQty) {
+        return NextResponse.json(
+          { error: `보유 수량(${currentQty}주)을 초과하여 매도할 수 없습니다.` },
+          { status: 400 }
+        );
+      }
+    }
+
     const trade = await prisma.trade.create({
       data: {
         holdingId,

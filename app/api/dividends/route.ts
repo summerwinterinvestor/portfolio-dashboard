@@ -34,6 +34,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (Number(amount) <= 0) {
+      return NextResponse.json({ error: '배당금은 0보다 커야 합니다.' }, { status: 400 });
+    }
+
     const dividend = await prisma.dividend.create({
       data: {
         holdingId,

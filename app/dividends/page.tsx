@@ -127,6 +127,11 @@ export default function DividendsPage() {
       setError('종목과 배당금은 필수입니다.');
       return;
     }
+    const amountNum = parseFloat(form.amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      setError('배당금은 0보다 커야 합니다.');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
@@ -170,6 +175,11 @@ export default function DividendsPage() {
 
   const handleUpdateDiv = async () => {
     if (!editingDivId) return;
+    const amountNum = parseFloat(editDivForm.amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      alert('배당금은 0보다 커야 합니다.');
+      return;
+    }
     try {
       const res = await fetch(`/api/dividends/${editingDivId}`, {
         method: 'PUT',

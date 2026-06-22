@@ -4,8 +4,8 @@
  */
 
 import type { NextRequest } from "next/server";
-import { getDomesticPrice } from "@/lib/kis/domestic-price";
-import { getOverseasPrice, type ExchangeCode } from "@/lib/kis/overseas-price";
+import { getCachedDomesticPrice, getCachedOverseasPrice } from "@/lib/kis/price-cache";
+import type { ExchangeCode } from "@/lib/kis/overseas-price";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -22,10 +22,10 @@ export async function GET(request: NextRequest) {
 
   try {
     if (market === "KR") {
-      const price = await getDomesticPrice(ticker);
+      const price = await getCachedDomesticPrice(ticker);
       return Response.json(price);
     } else if (market === "US") {
-      const price = await getOverseasPrice(ticker, exchange);
+      const price = await getCachedOverseasPrice(ticker, exchange);
       return Response.json(price);
     } else {
       return Response.json(

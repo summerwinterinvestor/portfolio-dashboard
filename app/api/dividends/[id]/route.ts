@@ -34,6 +34,10 @@ export async function PUT(
     const body = await request.json();
     const { amount, paidDate } = body;
 
+    if (amount !== undefined && Number(amount) <= 0) {
+      return NextResponse.json({ error: '배당금은 0보다 커야 합니다.' }, { status: 400 });
+    }
+
     const dividend = await prisma.dividend.update({
       where: { id },
       data: {

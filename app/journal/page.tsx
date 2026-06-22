@@ -181,6 +181,11 @@ export default function JournalPage() {
       setError('종목, 수량, 가격은 필수입니다.');
       return;
     }
+    const today = new Date().toISOString().split('T')[0];
+    if (form.tradeDate > today) {
+      setError('미래 날짜로 거래를 입력할 수 없습니다.');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
@@ -207,7 +212,10 @@ export default function JournalPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error('등록 실패');
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || '등록 실패');
+        }
       }
       setForm(emptyForm());
       setEditingId(null);

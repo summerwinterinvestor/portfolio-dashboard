@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, Fragment } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Holding, PriceData, Account } from '@/types';
+import type { Holding, PriceData, Account, Asset } from '@/types';
 import HoldingForm from './HoldingForm';
+import NetWorthSummary from './NetWorthSummary';
 
 export type DashboardRow = {
   holding: Holding;
@@ -12,13 +13,26 @@ export type DashboardRow = {
   costBasisKRW: number;
   gainLossRate: number;
   priceOk: boolean;
+  priceLoading: boolean;
 };
 
 interface Props {
-  rows: DashboardRow[];
-  totalValueKRW: number;
+  holdings: Holding[];
   usdKrw: number;
+  assets: Asset[];
   accounts: Account[];
+}
+
+async function withConcurrency<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  let next = 0;
+  async function worker() {
+    while (next < items.length) { const i = next++; await fn(items[i]); }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
 type ViewMode = '전체' | '시장별' | '계좌별';
@@ -42,16 +56,8 @@ function DailyChange({ change, changeRate, currency }: { change: number; changeR
 }
 
 const BROKER_COLORS = [
-  '#60a5fa', // blue
-  '#a78bfa', // violet
-  '#34d399', // emerald
-  '#fb923c', // orange
-  '#f472b6', // pink
-  '#22d3ee', // cyan
-  '#facc15', // yellow
-  '#f87171', // red
-  '#a3e635', // lime
-  '#e879f9', // fuchsia
+  '#60a5fa', '#a78bfa', '#34d399', '#fb923c', '#f472b6',
+  '#22d3ee', '#facc15', '#f87171', '#a3e635', '#e879f9',
 ];
 
 function brokerColor(broker: string): string {
@@ -70,12 +76,67 @@ const TH = () => (
   </tr>
 );
 
-export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }: Props) {
+function Skeleton({ w = 'w-20' }: { w?: string }) {
+  return <span className={`inline-block ${w} h-4 bg-gray-700/60 rounded animate-pulse`} />;
+}
+
+export default function DashboardTable({ holdings, usdKrw, assets, accounts }: Props) {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>('전체');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editingHolding, setEditingHolding] = useState<Holding | null>(null);
-  const anyPriceFail = rows.some((r) => !r.priceOk);
+  // undefined = 아직 조회 전, null = 조회 실패, PriceData = 성공
+  const [priceMap, setPriceMap] = useState<Record<string, PriceData | null | undefined>>({});
+  const [pricesLoading, setPricesLoading] = useState(holdings.length > 0);
+
+  useEffect(() => {
+    if (holdings.length === 0) { setPricesLoading(false); return; }
+
+    let cancelled = false;
+
+    async function fetchAllPrices() {
+      await withConcurrency(holdings, 10, async (holding) => {
+        if (cancelled) return;
+        try {
+          if (holding.market !== 'US') {
+            const params = new URLSearchParams({ ticker: holding.ticker, market: holding.market });
+            const res = await fetch(`/api/kis/price?${params}`);
+            const data = res.ok ? await res.json() : null;
+            if (!cancelled) setPriceMap((prev) => ({ ...prev, [holding.id]: data?.currentPrice ? data : null }));
+            return;
+          }
+
+          const exchanges = holding.exchange
+            ? [holding.exchange, ...['NAS', 'NYS', 'AMS'].filter((e) => e !== holding.exchange)]
+            : ['NAS', 'NYS', 'AMS'];
+
+          let found = false;
+          for (const exchange of exchanges) {
+            if (cancelled) break;
+            try {
+              const params = new URLSearchParams({ ticker: holding.ticker, market: 'US', exchange });
+              const res = await fetch(`/api/kis/price?${params}`);
+              if (res.ok) {
+                const data = await res.json();
+                if (data?.currentPrice) {
+                  if (!cancelled) setPriceMap((prev) => ({ ...prev, [holding.id]: data }));
+                  found = true;
+                  break;
+                }
+              }
+            } catch { continue; }
+          }
+          if (!found && !cancelled) setPriceMap((prev) => ({ ...prev, [holding.id]: null }));
+        } catch {
+          if (!cancelled) setPriceMap((prev) => ({ ...prev, [holding.id]: null }));
+        }
+      });
+      if (!cancelled) setPricesLoading(false);
+    }
+
+    fetchAllPrices();
+    return () => { cancelled = true; };
+  }, [holdings]);
 
   const toggleExpand = (ticker: string) =>
     setExpanded((prev) => {
@@ -95,10 +156,38 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
     }
   };
 
+  // ── 행 계산 ──────────────────────────────────────────────────
+  const rows: DashboardRow[] = holdings.map((holding) => {
+    const rawPrice = priceMap[holding.id];
+    const price = rawPrice ?? null;
+    const priceLoading = rawPrice === undefined && pricesLoading;
+    const priceOk = price !== null && isFinite(price.currentPrice) && price.currentPrice > 0;
+    const currentPrice = priceOk ? price.currentPrice : holding.avgPrice;
+    const fxRate = holding.currency === 'USD' ? (usdKrw || 1) : 1;
+    const currentValueKRW = holding.quantity * currentPrice * fxRate;
+    const costBasisKRW = holding.quantity * holding.avgPrice * fxRate;
+    const gainLossRate =
+      costBasisKRW > 0 ? ((currentValueKRW - costBasisKRW) / costBasisKRW) * 100 : 0;
+    return { holding, price, currentValueKRW, costBasisKRW, gainLossRate, priceOk, priceLoading };
+  });
+
+  const totalValueKRW = rows.reduce((s, r) => s + r.currentValueKRW, 0);
+  const totalCostKRW = rows.reduce((s, r) => s + r.costBasisKRW, 0);
+  const totalGainLossRate =
+    totalCostKRW > 0 ? ((totalValueKRW - totalCostKRW) / totalCostKRW) * 100 : 0;
+  const dailyGainKRW = rows.reduce((sum, row) => {
+    if (!row.priceOk || !row.price || !isFinite(row.price.change)) return sum;
+    const fxRate = row.holding.currency === 'USD' ? (usdKrw || 1) : 1;
+    return sum + row.price.change * row.holding.quantity * fxRate;
+  }, 0);
+  const prevTotalKRW = totalValueKRW - dailyGainKRW;
+  const dailyGainRate = prevTotalKRW > 0 ? (dailyGainKRW / prevTotalKRW) * 100 : 0;
+  const anyPriceFail = !pricesLoading && rows.some((r) => !r.priceOk);
+
   // ── 전체 뷰: 티커별 합산 ──────────────────────────────────────
   type TickerGroup = {
     ticker: string; name: string; market: string; currency: string;
-    currentPrice: number; priceOk: boolean;
+    currentPrice: number; priceOk: boolean; priceLoading: boolean;
     change: number; changeRate: number;
     totalValue: number; totalCost: number; gainLossRate: number;
     rows: DashboardRow[];
@@ -113,6 +202,7 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
         market: holding.market, currency: holding.currency,
         currentPrice: row.priceOk ? row.price!.currentPrice : holding.avgPrice,
         priceOk: row.priceOk,
+        priceLoading: row.priceLoading,
         change: row.priceOk ? (row.price!.change ?? 0) : 0,
         changeRate: row.priceOk ? (row.price!.changeRate ?? 0) : 0,
         totalValue: 0, totalCost: 0, gainLossRate: 0, rows: [],
@@ -122,6 +212,12 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
     g.rows.push(row);
     g.totalValue += row.currentValueKRW;
     g.totalCost += row.costBasisKRW;
+    if (!g.priceOk && row.priceOk) {
+      g.currentPrice = row.price!.currentPrice;
+      g.priceOk = true;
+      g.priceLoading = false;
+    }
+    if (g.priceLoading && !row.priceLoading) g.priceLoading = false;
   }
   for (const g of tickerMap.values()) {
     g.gainLossRate = g.totalCost > 0 ? ((g.totalValue - g.totalCost) / g.totalCost) * 100 : 0;
@@ -150,9 +246,7 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
   const acctMap = new Map<string, AccountGroup>();
   for (const row of rows) {
     const broker = row.holding.account?.broker ?? '';
-    const key = row.holding.account
-      ? `${broker} — ${row.holding.account.name}`
-      : '계좌 미지정';
+    const key = row.holding.account ? `${broker} — ${row.holding.account.name}` : '계좌 미지정';
     if (!acctMap.has(key)) acctMap.set(key, { label: key, broker, rows: [], subtotal: 0, cost: 0 });
     const g = acctMap.get(key)!;
     g.rows.push(row);
@@ -161,7 +255,7 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
   }
   const acctGroups = Array.from(acctMap.values()).sort((a, b) => b.subtotal - a.subtotal);
 
-  // ── 개별 행 컴포넌트 ─────────────────────────────────────────
+  // ── 개별 행 버튼 ─────────────────────────────────────────────
   const ActionButtons = ({ holding }: { holding: Holding }) => (
     <div className="flex justify-end gap-3">
       <button
@@ -177,11 +271,63 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
 
   return (
     <>
+      {/* 순자산 요약 */}
+      <NetWorthSummary
+        stockValueKRW={totalValueKRW}
+        assets={assets}
+        usdKrw={usdKrw}
+      />
+
+      {/* 요약 카드 2×2 */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="bg-gray-900 rounded-xl p-4">
+          <p className="text-xs text-gray-500 mb-1">주식 총 평가금액</p>
+          <p className="text-xl font-bold text-white">
+            {pricesLoading
+              ? <Skeleton w="w-32" />
+              : <span className="private-value value-in" style={{ animationDelay: '0ms' }}>{fmt(Math.round(totalValueKRW))}원</span>
+            }
+          </p>
+        </div>
+        <div className="bg-gray-900 rounded-xl p-4">
+          <p className="text-xs text-gray-500 mb-1">총 수익률</p>
+          <p className={`text-xl font-bold ${totalGainLossRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {pricesLoading
+              ? <Skeleton w="w-20" />
+              : <span className="private-value value-in" style={{ animationDelay: '60ms' }}>{fmtPct(totalGainLossRate)}</span>
+            }
+          </p>
+        </div>
+        <div className="bg-gray-900 rounded-xl p-4">
+          <p className="text-xs text-gray-500 mb-1">일간 수익금</p>
+          <p className={`text-xl font-bold ${dailyGainKRW >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {pricesLoading
+              ? <Skeleton w="w-28" />
+              : <span className="private-value value-in" style={{ animationDelay: '120ms' }}>{dailyGainKRW >= 0 ? '+' : '-'}{fmt(Math.round(Math.abs(dailyGainKRW)))}원</span>
+            }
+          </p>
+        </div>
+        <div className="bg-gray-900 rounded-xl p-4">
+          <p className="text-xs text-gray-500 mb-1">일간 수익률</p>
+          <p className={`text-xl font-bold ${dailyGainRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {pricesLoading
+              ? <Skeleton w="w-20" />
+              : <span className="private-value value-in" style={{ animationDelay: '180ms' }}>{fmtPct(dailyGainRate)}</span>
+            }
+          </p>
+        </div>
+      </div>
+
       <div>
         <div className="bg-gray-900 rounded-xl overflow-hidden">
           {/* 헤더 */}
           <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-300">보유 종목</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-300">보유 종목</h2>
+              {pricesLoading && (
+                <span className="text-xs text-gray-600 animate-pulse">시세 조회 중...</span>
+              )}
+            </div>
             {rows.length > 0 && (
               <div className="flex rounded-lg overflow-hidden border border-gray-700">
                 {(['전체', '시장별', '계좌별'] as ViewMode[]).map((m) => (
@@ -212,7 +358,6 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
                     const weight = totalValueKRW > 0 ? (g.totalValue / totalValueKRW) * 100 : 0;
                     return (
                       <Fragment key={g.ticker}>
-                        {/* 합산 행 */}
                         <tr
                           onClick={() => multi && toggleExpand(g.ticker)}
                           className={`border-b border-gray-800 transition-colors ${multi ? 'cursor-pointer hover:bg-gray-800/50' : 'hover:bg-gray-800/30'}`}
@@ -232,26 +377,39 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
                             </div>
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <div className="flex flex-col items-end">
-                              <span className="text-white private-value">
-                                {g.currency === 'USD' ? `$${fmt(g.currentPrice)}` : `₩${fmt(g.currentPrice)}`}
-                              </span>
-                              {g.currency === 'USD' && usdKrw > 0 && (
-                                <span className="text-xs text-gray-500 private-value">₩{fmt(Math.round(g.currentPrice * usdKrw))}</span>
-                              )}
-                              {g.priceOk
-                                ? <DailyChange change={g.change} changeRate={g.changeRate} currency={g.currency} />
-                                : <span className="text-xs text-yellow-600">매입가 기준</span>
-                              }
-                            </div>
+                            {g.priceLoading ? (
+                              <div className="flex flex-col items-end gap-1">
+                                <Skeleton w="w-20" />
+                                <Skeleton w="w-28" />
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-end">
+                                <span className="text-white private-value">
+                                  {g.currency === 'USD' ? `$${fmt(g.currentPrice)}` : `₩${fmt(g.currentPrice)}`}
+                                </span>
+                                {g.currency === 'USD' && usdKrw > 0 && (
+                                  <span className="text-xs text-gray-500 private-value">₩{fmt(Math.round(g.currentPrice * usdKrw))}</span>
+                                )}
+                                {g.priceOk
+                                  ? <DailyChange change={g.change} changeRate={g.changeRate} currency={g.currency} />
+                                  : <span className="text-xs text-yellow-600">매입가 기준</span>
+                                }
+                              </div>
+                            )}
                           </td>
-                          <td className="px-4 py-3 text-right text-white"><span className="private-value">₩{fmt(Math.round(g.totalValue))}</span></td>
+                          <td className="px-4 py-3 text-right text-white">
+                            {g.priceLoading ? <Skeleton w="w-24" /> : <span className="private-value">₩{fmt(Math.round(g.totalValue))}</span>}
+                          </td>
                           <td className="px-4 py-3 text-right">
-                            <span className={`private-value ${g.gainLossRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {fmtPct(g.gainLossRate)}
-                            </span>
+                            {g.priceLoading ? <Skeleton w="w-16" /> : (
+                              <span className={`private-value ${g.gainLossRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {fmtPct(g.gainLossRate)}
+                              </span>
+                            )}
                           </td>
-                          <td className="px-4 py-3 text-right text-gray-300">{weight.toFixed(1)}%</td>
+                          <td className="px-4 py-3 text-right text-gray-300">
+                            {g.priceLoading ? <Skeleton w="w-10" /> : `${weight.toFixed(1)}%`}
+                          </td>
                           <td className="px-4 py-3">
                             {!multi && <ActionButtons holding={g.rows[0].holding} />}
                           </td>
@@ -284,13 +442,19 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
                                 </div>
                               </td>
                               <td className="px-4 py-2" />
-                              <td className="px-4 py-2 text-right text-sm text-gray-300"><span className="private-value">₩{fmt(Math.round(row.currentValueKRW))}</span></td>
-                              <td className="px-4 py-2 text-right">
-                                <span className={`text-sm private-value ${row.gainLossRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                  {fmtPct(row.gainLossRate)}
-                                </span>
+                              <td className="px-4 py-2 text-right text-sm text-gray-300">
+                                {row.priceLoading ? <Skeleton w="w-20" /> : <span className="private-value">₩{fmt(Math.round(row.currentValueKRW))}</span>}
                               </td>
-                              <td className="px-4 py-2 text-right text-xs text-gray-500">{rowWeight.toFixed(1)}%</td>
+                              <td className="px-4 py-2 text-right">
+                                {row.priceLoading ? <Skeleton w="w-14" /> : (
+                                  <span className={`text-sm private-value ${row.gainLossRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {fmtPct(row.gainLossRate)}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-2 text-right text-xs text-gray-500">
+                                {row.priceLoading ? <Skeleton w="w-10" /> : `${rowWeight.toFixed(1)}%`}
+                              </td>
                               <td className="px-4 py-2"><ActionButtons holding={row.holding} /></td>
                             </tr>
                           );
@@ -345,26 +509,36 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-right">
-                                  <div className="flex flex-col items-end">
-                                    <span className="text-white private-value">
-                                      {row.holding.currency === 'USD' ? `$${fmt(currentPrice)}` : `₩${fmt(currentPrice)}`}
-                                    </span>
-                                    {row.holding.currency === 'USD' && usdKrw > 0 && (
-                                      <span className="text-xs text-gray-500 private-value">₩{fmt(Math.round(currentPrice * usdKrw))}</span>
-                                    )}
-                                    {row.priceOk
-                                      ? <DailyChange change={row.price!.change ?? 0} changeRate={row.price!.changeRate ?? 0} currency={row.holding.currency} />
-                                      : <span className="text-xs text-yellow-600">매입가 기준</span>
-                                    }
-                                  </div>
+                                  {row.priceLoading ? (
+                                    <div className="flex flex-col items-end gap-1"><Skeleton w="w-20" /><Skeleton w="w-28" /></div>
+                                  ) : (
+                                    <div className="flex flex-col items-end">
+                                      <span className="text-white private-value">
+                                        {row.holding.currency === 'USD' ? `$${fmt(currentPrice)}` : `₩${fmt(currentPrice)}`}
+                                      </span>
+                                      {row.holding.currency === 'USD' && usdKrw > 0 && (
+                                        <span className="text-xs text-gray-500 private-value">₩{fmt(Math.round(currentPrice * usdKrw))}</span>
+                                      )}
+                                      {row.priceOk
+                                        ? <DailyChange change={row.price!.change ?? 0} changeRate={row.price!.changeRate ?? 0} currency={row.holding.currency} />
+                                        : <span className="text-xs text-yellow-600">매입가 기준</span>
+                                      }
+                                    </div>
+                                  )}
                                 </td>
-                                <td className="px-4 py-3 text-right text-white"><span className="private-value">₩{fmt(Math.round(row.currentValueKRW))}</span></td>
+                                <td className="px-4 py-3 text-right text-white">
+                                  {row.priceLoading ? <Skeleton w="w-24" /> : <span className="private-value">₩{fmt(Math.round(row.currentValueKRW))}</span>}
+                                </td>
                                 <td className="px-4 py-3 text-right">
-                                  <span className={`private-value ${row.gainLossRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {fmtPct(row.gainLossRate)}
-                                  </span>
+                                  {row.priceLoading ? <Skeleton w="w-16" /> : (
+                                    <span className={`private-value ${row.gainLossRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {fmtPct(row.gainLossRate)}
+                                    </span>
+                                  )}
                                 </td>
-                                <td className="px-4 py-3 text-right text-gray-300">{weight.toFixed(1)}%</td>
+                                <td className="px-4 py-3 text-right text-gray-300">
+                                  {row.priceLoading ? <Skeleton w="w-10" /> : `${weight.toFixed(1)}%`}
+                                </td>
                                 <td className="px-4 py-3"><ActionButtons holding={row.holding} /></td>
                               </tr>
                             );
@@ -417,26 +591,36 @@ export default function DashboardTable({ rows, totalValueKRW, usdKrw, accounts }
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-right">
-                                  <div className="flex flex-col items-end">
-                                    <span className="text-white private-value">
-                                      {row.holding.currency === 'USD' ? `$${fmt(currentPrice)}` : `₩${fmt(currentPrice)}`}
-                                    </span>
-                                    {row.holding.currency === 'USD' && usdKrw > 0 && (
-                                      <span className="text-xs text-gray-500 private-value">₩{fmt(Math.round(currentPrice * usdKrw))}</span>
-                                    )}
-                                    {row.priceOk
-                                      ? <DailyChange change={row.price!.change ?? 0} changeRate={row.price!.changeRate ?? 0} currency={row.holding.currency} />
-                                      : <span className="text-xs text-yellow-600">매입가 기준</span>
-                                    }
-                                  </div>
+                                  {row.priceLoading ? (
+                                    <div className="flex flex-col items-end gap-1"><Skeleton w="w-20" /><Skeleton w="w-28" /></div>
+                                  ) : (
+                                    <div className="flex flex-col items-end">
+                                      <span className="text-white private-value">
+                                        {row.holding.currency === 'USD' ? `$${fmt(currentPrice)}` : `₩${fmt(currentPrice)}`}
+                                      </span>
+                                      {row.holding.currency === 'USD' && usdKrw > 0 && (
+                                        <span className="text-xs text-gray-500 private-value">₩{fmt(Math.round(currentPrice * usdKrw))}</span>
+                                      )}
+                                      {row.priceOk
+                                        ? <DailyChange change={row.price!.change ?? 0} changeRate={row.price!.changeRate ?? 0} currency={row.holding.currency} />
+                                        : <span className="text-xs text-yellow-600">매입가 기준</span>
+                                      }
+                                    </div>
+                                  )}
                                 </td>
-                                <td className="px-4 py-3 text-right text-white"><span className="private-value">₩{fmt(Math.round(row.currentValueKRW))}</span></td>
+                                <td className="px-4 py-3 text-right text-white">
+                                  {row.priceLoading ? <Skeleton w="w-24" /> : <span className="private-value">₩{fmt(Math.round(row.currentValueKRW))}</span>}
+                                </td>
                                 <td className="px-4 py-3 text-right">
-                                  <span className={`private-value ${row.gainLossRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {fmtPct(row.gainLossRate)}
-                                  </span>
+                                  {row.priceLoading ? <Skeleton w="w-16" /> : (
+                                    <span className={`private-value ${row.gainLossRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {fmtPct(row.gainLossRate)}
+                                    </span>
+                                  )}
                                 </td>
-                                <td className="px-4 py-3 text-right text-gray-300">{weight.toFixed(1)}%</td>
+                                <td className="px-4 py-3 text-right text-gray-300">
+                                  {row.priceLoading ? <Skeleton w="w-10" /> : `${weight.toFixed(1)}%`}
+                                </td>
                                 <td className="px-4 py-3"><ActionButtons holding={row.holding} /></td>
                               </tr>
                             );

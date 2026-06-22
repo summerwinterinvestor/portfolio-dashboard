@@ -33,3 +33,12 @@ html.privacy-on .private-value {
 .private-value {
   transition: filter 0.15s;
 }
+
+@keyframes value-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.value-in {
+  animation: value-in 0.35s ease-out both;
+}

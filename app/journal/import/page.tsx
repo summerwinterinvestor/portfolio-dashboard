@@ -85,6 +85,7 @@ export default function ImportPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
+  const [skippedCount, setSkippedCount] = useState(0);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -188,8 +189,9 @@ export default function ImportPage() {
         body: JSON.stringify(tradesToImport),
       });
       if (!res.ok) throw new Error('가져오기 실패');
-      const { imported } = await res.json();
+      const { imported, skipped } = await res.json();
       setImportedCount(imported);
+      setSkippedCount(skipped ?? 0);
       setStep('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : '오류가 발생했습니다.');
@@ -518,6 +520,9 @@ export default function ImportPage() {
         <div className="bg-gray-900 rounded-xl p-12 text-center">
           <p className="text-3xl mb-3">✓</p>
           <p className="text-white font-semibold text-lg mb-1">{importedCount}건 가져오기 완료</p>
+          {skippedCount > 0 && (
+            <p className="text-yellow-500 text-sm mb-1">중복 {skippedCount}건 건너뜀</p>
+          )}
           <p className="text-gray-500 text-sm mb-6">매매일지에서 확인하세요.</p>
           <button
             onClick={() => router.push('/journal')}
