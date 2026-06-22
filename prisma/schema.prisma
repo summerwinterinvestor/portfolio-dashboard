@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Account {
+  id        String    @id @default(cuid())
+  broker    String    // 증권사 (자유 입력: KB증권, 미래에셋 등)
+  name      String    // 계좌명 (자유 입력: IRP, 연금저축, ISA 등)
+  memo      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  holdings  Holding[]
+}
+
+model Holding {
+  id           String     @id @default(cuid())
+  ticker       String
+  market       String     // KR | US
+  name         String
+  currency     String     // KRW | USD
+  quantity     Float
+  avgPrice     Float
+  targetWeight Float?
+  exchange     String?    // 해외주식 거래소 코드 (NAS | NYS | AMS), 첫 조회 성공 시 자동 저장
+  sector       String?    // 섹터 / 테마 (자유 입력, 선택)
+  accountId    String?
+  account      Account?   @relation(fields: [accountId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  trades       Trade[]
+  dividends    Dividend[]
+}
+
+model Trade {
+  id        String   @id @default(cuid())
+  holdingId String
+  holding   Holding  @relation(fields: [holdingId], references: [id])
+  type      String   // BUY | SELL
+  quantity  Float
+  price     Float
+  tradeDate DateTime
+  thesis    String?
+  createdAt DateTime @default(now())
+}
+
+model Dividend {
+  id        String   @id @default(cuid())
+  holdingId String
+  holding   Holding  @relation(fields: [holdingId], references: [id])
+  amount    Float
+  paidDate  DateTime
+  createdAt DateTime @default(now())
+}
+
+model Asset {
+  id        String   @id @default(cuid())
+  category  String   // REAL_ESTATE | CASH
+  name      String
+  currency  String   // KRW | USD
+  value     Float
+  valuedAt  DateTime
+  memo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
