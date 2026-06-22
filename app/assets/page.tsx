@@ -36,6 +36,16 @@ export default function AssetsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [openSections, setOpenSections] = useState<Set<string>>(
+    new Set(['REAL_ESTATE', 'CASH', 'LOAN', 'OTHER'])
+  );
+
+  const toggleSection = (key: string) =>
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
 
   const fetchAssets = useCallback(async () => {
     setLoading(true);
@@ -327,119 +337,133 @@ export default function AssetsPage() {
       ) : (
         <div className="space-y-6">
           {/* 부동산 */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-gray-300">부동산</h2>
-              <div className="text-xs text-gray-500">
-                {realEstateTotalKRW > 0 && (
-                  <span className="mr-3 private-value">₩{fmt(realEstateTotalKRW)}</span>
-                )}
-                {realEstateTotalUSD > 0 && (
-                  <span className="private-value">${fmt(realEstateTotalUSD)}</span>
-                )}
+          <div className="bg-gray-900 rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('REAL_ESTATE')}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/40 transition-colors"
+            >
+              <h2 className="text-sm font-semibold text-gray-300">부동산
+                <span className="ml-2 text-xs font-normal text-gray-600">({realEstateAssets.length})</span>
+              </h2>
+              <div className="flex items-center gap-3">
+                <div className="text-xs text-gray-500">
+                  {realEstateTotalKRW > 0 && <span className="mr-2 private-value">₩{fmt(realEstateTotalKRW)}</span>}
+                  {realEstateTotalUSD > 0 && <span className="private-value">${fmt(realEstateTotalUSD)}</span>}
+                </div>
+                <span className="text-gray-600 text-xs">{openSections.has('REAL_ESTATE') ? '▲' : '▼'}</span>
               </div>
-            </div>
-            {realEstateAssets.length === 0 ? (
-              <div className="bg-gray-900 rounded-xl p-6 text-center text-gray-600 text-sm">
-                등록된 부동산 자산이 없습니다.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {realEstateAssets.map((asset) => (
-                  <AssetCard
-                    key={asset.id}
-                    asset={asset}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
+            </button>
+            {openSections.has('REAL_ESTATE') && (
+              <div className="border-t border-gray-800 p-4">
+                {realEstateAssets.length === 0 ? (
+                  <p className="text-center text-gray-600 text-sm py-4">등록된 부동산 자산이 없습니다.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {realEstateAssets.map((asset) => (
+                      <AssetCard key={asset.id} asset={asset} onEdit={handleEdit} onDelete={handleDelete} />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           {/* 현금 */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-gray-300">현금</h2>
-              <div className="text-xs text-gray-500">
-                {cashKRW > 0 && (
-                  <span className="mr-3 private-value">₩{fmt(cashKRW)}</span>
+          <div className="bg-gray-900 rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('CASH')}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/40 transition-colors"
+            >
+              <h2 className="text-sm font-semibold text-gray-300">현금
+                <span className="ml-2 text-xs font-normal text-gray-600">({cashAssets.length})</span>
+              </h2>
+              <div className="flex items-center gap-3">
+                <div className="text-xs text-gray-500">
+                  {cashKRW > 0 && <span className="mr-2 private-value">₩{fmt(cashKRW)}</span>}
+                  {cashUSD > 0 && <span className="private-value">${fmt(cashUSD)}</span>}
+                </div>
+                <span className="text-gray-600 text-xs">{openSections.has('CASH') ? '▲' : '▼'}</span>
+              </div>
+            </button>
+            {openSections.has('CASH') && (
+              <div className="border-t border-gray-800 p-4">
+                {cashAssets.length === 0 ? (
+                  <p className="text-center text-gray-600 text-sm py-4">등록된 현금 자산이 없습니다.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {cashAssets.map((asset) => (
+                      <AssetCard key={asset.id} asset={asset} onEdit={handleEdit} onDelete={handleDelete} />
+                    ))}
+                  </div>
                 )}
-                {cashUSD > 0 && <span className="private-value">${fmt(cashUSD)}</span>}
-              </div>
-            </div>
-            {cashAssets.length === 0 ? (
-              <div className="bg-gray-900 rounded-xl p-6 text-center text-gray-600 text-sm">
-                등록된 현금 자산이 없습니다.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {cashAssets.map((asset) => (
-                  <AssetCard
-                    key={asset.id}
-                    asset={asset}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
               </div>
             )}
           </div>
 
           {/* 기타 */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-gray-300">기타</h2>
-              <div className="text-xs text-gray-500">
-                {otherKRW > 0 && (
-                  <span className="mr-3 private-value">₩{fmt(otherKRW)}</span>
+          <div className="bg-gray-900 rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('OTHER')}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/40 transition-colors"
+            >
+              <h2 className="text-sm font-semibold text-gray-300">기타
+                <span className="ml-2 text-xs font-normal text-gray-600">({otherAssets.length})</span>
+              </h2>
+              <div className="flex items-center gap-3">
+                <div className="text-xs text-gray-500">
+                  {otherKRW > 0 && <span className="mr-2 private-value">₩{fmt(otherKRW)}</span>}
+                  {otherUSD > 0 && <span className="private-value">${fmt(otherUSD)}</span>}
+                </div>
+                <span className="text-gray-600 text-xs">{openSections.has('OTHER') ? '▲' : '▼'}</span>
+              </div>
+            </button>
+            {openSections.has('OTHER') && (
+              <div className="border-t border-gray-800 p-4">
+                {otherAssets.length === 0 ? (
+                  <p className="text-center text-gray-600 text-sm py-4">등록된 기타 자산이 없습니다.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {otherAssets.map((asset) => (
+                      <AssetCard key={asset.id} asset={asset} onEdit={handleEdit} onDelete={handleDelete} />
+                    ))}
+                  </div>
                 )}
-                {otherUSD > 0 && <span className="private-value">${fmt(otherUSD)}</span>}
-              </div>
-            </div>
-            {otherAssets.length === 0 ? (
-              <div className="bg-gray-900 rounded-xl p-6 text-center text-gray-600 text-sm">
-                등록된 기타 자산이 없습니다.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {otherAssets.map((asset) => (
-                  <AssetCard
-                    key={asset.id}
-                    asset={asset}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
               </div>
             )}
           </div>
 
           {/* 대출 */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-gray-300">대출</h2>
-              <div className="text-xs text-red-400/70">
-                {loanKRW > 0 && (
-                  <span className="mr-3 private-value">-₩{fmt(loanKRW)}</span>
+          <div className="bg-gray-900 rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('LOAN')}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/40 transition-colors"
+            >
+              <h2 className="text-sm font-semibold text-gray-300">대출
+                <span className="ml-2 text-xs font-normal text-gray-600">({loanAssets.length})</span>
+              </h2>
+              <div className="flex items-center gap-3">
+                <div className="text-xs text-red-400/70">
+                  {loanKRW > 0 && <span className="mr-2 private-value">-₩{fmt(loanKRW)}</span>}
+                  {loanUSD > 0 && <span className="private-value">-${fmt(loanUSD)}</span>}
+                </div>
+                <span className="text-gray-600 text-xs">{openSections.has('LOAN') ? '▲' : '▼'}</span>
+              </div>
+            </button>
+            {openSections.has('LOAN') && (
+              <div className="border-t border-gray-800 p-4">
+                {loanAssets.length === 0 ? (
+                  <p className="text-center text-gray-600 text-sm py-4">등록된 대출이 없습니다.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {loanAssets.map((asset) => (
+                      <AssetCard key={asset.id} asset={asset} onEdit={handleEdit} onDelete={handleDelete} />
+                    ))}
+                  </div>
                 )}
-                {loanUSD > 0 && <span className="private-value">-${fmt(loanUSD)}</span>}
-              </div>
-            </div>
-            {loanAssets.length === 0 ? (
-              <div className="bg-gray-900 rounded-xl p-6 text-center text-gray-600 text-sm">
-                등록된 대출이 없습니다.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {loanAssets.map((asset) => (
-                  <AssetCard
-                    key={asset.id}
-                    asset={asset}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
               </div>
             )}
           </div>

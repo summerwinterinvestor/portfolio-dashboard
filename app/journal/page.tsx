@@ -147,6 +147,8 @@ export default function JournalPage() {
   const [typeFilter, setTypeFilter] = useState<'all' | 'BUY' | 'SELL'>('all');
   const [pageSize, setPageSize] = useState<10 | 30 | 50>(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [tickerTableOpen, setTickerTableOpen] = useState(true);
+  const [tickerSort, setTickerSort] = useState<'desc' | 'asc'>('desc');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -583,48 +585,64 @@ export default function JournalPage() {
           {/* 종목별 테이블 */}
           {pnlSummary.tickerList.length > 0 && (
             <div className="bg-gray-900 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-800">
-                <h2 className="text-sm font-semibold text-gray-300">
-                  종목별 실현 손익
-                  <span className="ml-2 text-xs font-normal text-gray-600">
-                    {PERIOD_LABELS[period]}
-                  </span>
-                </h2>
+              <div className="flex items-center justify-between border-b border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setTickerTableOpen((o) => !o)}
+                  className="flex-1 flex items-center gap-2 px-4 py-3 text-left hover:bg-gray-800/40 transition-colors"
+                >
+                  <h2 className="text-sm font-semibold text-gray-300">종목별 실현 손익</h2>
+                  <span className="text-xs text-gray-600">{PERIOD_LABELS[period]} · {pnlSummary.tickerList.length}종목</span>
+                  <span className="text-gray-600 text-xs ml-auto">{tickerTableOpen ? '▲' : '▼'}</span>
+                </button>
+                {tickerTableOpen && (
+                  <button
+                    type="button"
+                    onClick={() => setTickerSort((s) => s === 'desc' ? 'asc' : 'desc')}
+                    className="flex items-center gap-1 px-3 py-3 text-xs text-gray-500 hover:text-gray-300 transition-colors shrink-0 border-l border-gray-800"
+                  >
+                    손익순 {tickerSort === 'desc' ? '↓' : '↑'}
+                  </button>
+                )}
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-gray-500 border-b border-gray-800">
-                      <th className="px-4 py-3 text-left">종목</th>
-                      <th className="px-4 py-3 text-right">실현 손익</th>
-                      <th className="px-4 py-3 text-right">승/패</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pnlSummary.tickerList.map(([ticker, s]) => (
-                      <tr key={ticker} className="border-b border-gray-800 last:border-0 hover:bg-gray-800/40">
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-white">{s.name}</p>
-                          <p className="text-xs text-gray-500">{ticker}</p>
-                        </td>
-                        <td className={`px-4 py-3 text-right font-medium ${pnlColor(s.pnl)}`}>
-                          <span className="private-value">
-                            {pnlSign(s.pnl)}
-                            {s.currency === 'USD'
-                              ? `$${Math.abs(s.pnl).toFixed(2)}`
-                              : `₩${fmt(Math.round(Math.abs(s.pnl)))}`}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-xs text-gray-400">
-                          <span className="text-green-400">{s.wins}승</span>
-                          {' '}
-                          <span className="text-red-400">{s.losses}패</span>
-                        </td>
+              {tickerTableOpen && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-xs text-gray-500 border-b border-gray-800">
+                        <th className="px-4 py-3 text-left">종목</th>
+                        <th className="px-4 py-3 text-right">실현 손익</th>
+                        <th className="px-4 py-3 text-right">승/패</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {[...pnlSummary.tickerList]
+                        .sort((a, b) => tickerSort === 'desc' ? b[1].pnl - a[1].pnl : a[1].pnl - b[1].pnl)
+                        .map(([ticker, s]) => (
+                          <tr key={ticker} className="border-b border-gray-800 last:border-0 hover:bg-gray-800/40">
+                            <td className="px-4 py-3">
+                              <p className="font-medium text-white">{s.name}</p>
+                              <p className="text-xs text-gray-500">{ticker}</p>
+                            </td>
+                            <td className={`px-4 py-3 text-right font-medium ${pnlColor(s.pnl)}`}>
+                              <span className="private-value">
+                                {pnlSign(s.pnl)}
+                                {s.currency === 'USD'
+                                  ? `$${Math.abs(s.pnl).toFixed(2)}`
+                                  : `₩${fmt(Math.round(Math.abs(s.pnl)))}`}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right text-xs text-gray-400">
+                              <span className="text-green-400">{s.wins}승</span>
+                              {' '}
+                              <span className="text-red-400">{s.losses}패</span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
