@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import NavLinks from "@/components/NavLinks";
 import PrivacyToggle from "@/components/PrivacyToggle";
 import "./globals.css";
 
@@ -18,14 +19,6 @@ export const metadata: Metadata = {
   title: "포트폴리오 대시보드",
   description: "개인 주식 포트폴리오 관리 앱",
 };
-
-const navItems = [
-  { href: "/", label: "대시보드" },
-  { href: "/treemap", label: "트리맵" },
-  { href: "/journal", label: "매매일지" },
-  { href: "/dividends", label: "배당" },
-  { href: "/assets", label: "기타 자산" },
-];
 
 export default function RootLayout({
   children,
@@ -45,19 +38,11 @@ export default function RootLayout({
         <nav className="bg-gray-900 border-b border-gray-800 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-14">
-              <span className="text-base font-semibold text-white tracking-tight">
+              <Link href="/" className="text-base font-semibold text-white tracking-tight hover:text-gray-300 transition-colors">
                 Portfolio
-              </span>
+              </Link>
               <div className="flex items-center gap-1">
-                {navItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="px-3 py-2 rounded-md text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
+                <NavLinks />
                 <PrivacyToggle />
               </div>
             </div>

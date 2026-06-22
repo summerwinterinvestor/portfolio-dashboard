@@ -66,7 +66,7 @@ function brokerColor(broker: string): string {
 }
 
 const TH = () => (
-  <tr className="text-xs text-gray-500 border-b border-gray-800">
+  <tr className="text-xs text-gray-500 border-b border-gray-800/50">
     <th className="px-4 py-3 text-left">종목</th>
     <th className="px-4 py-3 text-right">현재가</th>
     <th className="px-4 py-3 text-right">평가금액 (원화)</th>
@@ -280,36 +280,36 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
 
       {/* 요약 카드 2×2 */}
       <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="bg-gray-900 rounded-xl p-4">
-          <p className="text-xs text-gray-500 mb-1">주식 총 평가금액</p>
-          <p className="text-xl font-bold text-white">
+        <div className="card bg-gray-900 p-5">
+          <p className="label mb-2">주식 총 평가금액</p>
+          <p className="text-2xl font-bold text-white">
             {pricesLoading
               ? <Skeleton w="w-32" />
               : <span className="private-value value-in" style={{ animationDelay: '0ms' }}>{fmt(Math.round(totalValueKRW))}원</span>
             }
           </p>
         </div>
-        <div className="bg-gray-900 rounded-xl p-4">
-          <p className="text-xs text-gray-500 mb-1">총 수익률</p>
-          <p className={`text-xl font-bold ${totalGainLossRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        <div className="card bg-gray-900 p-5">
+          <p className="label mb-2">총 수익률</p>
+          <p className={`text-2xl font-bold ${totalGainLossRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             {pricesLoading
               ? <Skeleton w="w-20" />
               : <span className="private-value value-in" style={{ animationDelay: '60ms' }}>{fmtPct(totalGainLossRate)}</span>
             }
           </p>
         </div>
-        <div className="bg-gray-900 rounded-xl p-4">
-          <p className="text-xs text-gray-500 mb-1">일간 수익금</p>
-          <p className={`text-xl font-bold ${dailyGainKRW >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        <div className="card bg-gray-900 p-5">
+          <p className="label mb-2">일간 수익금</p>
+          <p className={`text-2xl font-bold ${dailyGainKRW >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             {pricesLoading
               ? <Skeleton w="w-28" />
               : <span className="private-value value-in" style={{ animationDelay: '120ms' }}>{dailyGainKRW >= 0 ? '+' : '-'}{fmt(Math.round(Math.abs(dailyGainKRW)))}원</span>
             }
           </p>
         </div>
-        <div className="bg-gray-900 rounded-xl p-4">
-          <p className="text-xs text-gray-500 mb-1">일간 수익률</p>
-          <p className={`text-xl font-bold ${dailyGainRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        <div className="card bg-gray-900 p-5">
+          <p className="label mb-2">일간 수익률</p>
+          <p className={`text-2xl font-bold ${dailyGainRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             {pricesLoading
               ? <Skeleton w="w-20" />
               : <span className="private-value value-in" style={{ animationDelay: '180ms' }}>{fmtPct(dailyGainRate)}</span>
@@ -321,7 +321,7 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
       <div>
         <div className="bg-gray-900 rounded-xl overflow-hidden">
           {/* 헤더 */}
-          <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-gray-800/50 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold text-gray-300">보유 종목</h2>
               {pricesLoading && (
@@ -360,7 +360,7 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                       <Fragment key={g.ticker}>
                         <tr
                           onClick={() => multi && toggleExpand(g.ticker)}
-                          className={`border-b border-gray-800 transition-colors ${multi ? 'cursor-pointer hover:bg-gray-800/50' : 'hover:bg-gray-800/30'}`}
+                          className={`border-b border-gray-800/50 transition-colors ${multi ? 'cursor-pointer hover:bg-gray-800/50' : 'hover:bg-gray-800/30'}`}
                         >
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
@@ -426,7 +426,7 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                           return (
                             <tr
                               key={`sub-${row.holding.id}`}
-                              className="border-b border-gray-800/50 bg-gray-800/20 hover:bg-gray-800/40 transition-colors"
+                              className="border-b border-gray-800/50/50 bg-gray-800/20 hover:bg-gray-800/40 transition-colors"
                             >
                               <td className="px-4 py-2">
                                 <div className="flex items-start gap-3 pl-5 border-l-2 border-gray-700 ml-1">
@@ -474,7 +474,7 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                 const rate = mg.cost > 0 ? (gainLoss / mg.cost) * 100 : 0;
                 const color = mg.market === 'KR' ? '#60a5fa' : '#34d399';
                 return (
-                  <div key={mg.market} className="border-b border-gray-800 last:border-0">
+                  <div key={mg.market} className="border-b border-gray-800/50 last:border-0">
                     <div
                       className="px-4 py-2 bg-gray-800/40 flex items-center justify-between border-l-4"
                       style={{ borderLeftColor: color }}
@@ -494,7 +494,7 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                             const weight = totalValueKRW > 0 ? (row.currentValueKRW / totalValueKRW) * 100 : 0;
                             const currentPrice = row.priceOk ? row.price!.currentPrice : row.holding.avgPrice;
                             return (
-                              <tr key={row.holding.id} className="border-b border-gray-800 last:border-0 hover:bg-gray-800/50 transition-colors">
+                              <tr key={row.holding.id} className="border-b border-gray-800/50 last:border-0 hover:bg-gray-800/50 transition-colors">
                                 <td className="px-4 py-3">
                                   <div className="flex flex-col">
                                     <span className="font-medium text-white">{row.holding.name}</span>
@@ -559,7 +559,7 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                 const rate = ag.cost > 0 ? (gainLoss / ag.cost) * 100 : 0;
                 const color = brokerColor(ag.broker);
                 return (
-                  <div key={ag.label} className="border-b border-gray-800 last:border-0">
+                  <div key={ag.label} className="border-b border-gray-800/50 last:border-0">
                     <div
                       className="px-4 py-2 bg-gray-800/40 flex items-center justify-between border-l-4"
                       style={{ borderLeftColor: color }}
@@ -581,7 +581,7 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                             const weight = totalValueKRW > 0 ? (row.currentValueKRW / totalValueKRW) * 100 : 0;
                             const currentPrice = row.priceOk ? row.price!.currentPrice : row.holding.avgPrice;
                             return (
-                              <tr key={row.holding.id} className="border-b border-gray-800 last:border-0 hover:bg-gray-800/50 transition-colors">
+                              <tr key={row.holding.id} className="border-b border-gray-800/50 last:border-0 hover:bg-gray-800/50 transition-colors">
                                 <td className="px-4 py-3">
                                   <div className="flex flex-col">
                                     <span className="font-medium text-white">{row.holding.name}</span>

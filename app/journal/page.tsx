@@ -541,11 +541,11 @@ export default function JournalPage() {
 
             return (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-                <div className="bg-gray-900 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 mb-1">실현손익 합산</p>
-                  <p className={`text-lg font-bold ${pnlColor(totalCombinedKRW)}`}>
+                <div className="card bg-gray-900 p-5">
+                  <p className="label mb-2">실현손익 합산</p>
+                  <p className={`text-xl font-bold ${pnlColor(totalCombinedKRW)}`}>
                     <span className="private-value">
-                      {pnlSign(totalCombinedKRW)}₩{fmt(Math.round(Math.abs(totalCombinedKRW)))}
+                      {pnlSign(totalCombinedKRW)}{fmt(Math.round(Math.abs(totalCombinedKRW)))}원
                     </span>
                   </p>
                   {usdKrw > 0 && totalUSD !== 0 && (
@@ -555,27 +555,27 @@ export default function JournalPage() {
                   )}
                 </div>
 
-                <div className="bg-gray-900 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 mb-1">실현손익 (KRW)</p>
-                  <p className={`text-lg font-bold ${totalKRW !== 0 ? pnlColor(totalKRW) : 'text-gray-600'}`}>
+                <div className="card bg-gray-900 p-5">
+                  <p className="label mb-2">실현손익 (KRW)</p>
+                  <p className={`text-xl font-bold ${totalKRW !== 0 ? pnlColor(totalKRW) : 'text-gray-600'}`}>
                     <span className="private-value">
-                      {totalKRW !== 0 ? `${pnlSign(totalKRW)}₩${fmt(Math.round(Math.abs(totalKRW)))}` : '₩0'}
+                      {totalKRW !== 0 ? `${pnlSign(totalKRW)}${fmt(Math.round(Math.abs(totalKRW)))}원` : '0원'}
                     </span>
                   </p>
                 </div>
 
-                <div className="bg-gray-900 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 mb-1">실현손익 (USD)</p>
-                  <p className={`text-lg font-bold ${totalUSD !== 0 ? pnlColor(totalUSD) : 'text-gray-600'}`}>
+                <div className="card bg-gray-900 p-5">
+                  <p className="label mb-2">실현손익 (USD)</p>
+                  <p className={`text-xl font-bold ${totalUSD !== 0 ? pnlColor(totalUSD) : 'text-gray-600'}`}>
                     <span className="private-value">
                       {totalUSD !== 0 ? `${pnlSign(totalUSD)}$${Math.abs(totalUSD).toFixed(2)}` : '$0'}
                     </span>
                   </p>
                 </div>
 
-                <div className="bg-gray-900 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 mb-1">승률</p>
-                  <p className="text-lg font-bold text-white">
+                <div className="card bg-gray-900 p-5">
+                  <p className="label mb-2">승률</p>
+                  <p className="text-xl font-bold text-white">
                     {total > 0 ? `${winRate.toFixed(0)}%` : '-'}
                   </p>
                   {total > 0 && (
@@ -593,7 +593,7 @@ export default function JournalPage() {
           {/* 종목별 테이블 */}
           {pnlSummary.tickerList.length > 0 && (
             <div className="bg-gray-900 rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between border-b border-gray-800">
+              <div className="flex items-center justify-between border-b border-gray-800/50">
                 <button
                   type="button"
                   onClick={() => setTickerTableOpen((o) => !o)}
@@ -617,7 +617,7 @@ export default function JournalPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-xs text-gray-500 border-b border-gray-800">
+                      <tr className="text-xs text-gray-500 border-b border-gray-800/50">
                         <th className="px-4 py-3 text-left">종목</th>
                         <th className="px-4 py-3 text-right">실현 손익</th>
                         <th className="px-4 py-3 text-right">승/패</th>

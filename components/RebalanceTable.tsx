@@ -72,7 +72,7 @@ export default function RebalanceTable({ rows, totalValueKRW }: Props) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-xs text-gray-500 border-b border-gray-800">
+            <tr className="text-xs text-gray-500 border-b border-gray-800/50">
               <th className="px-4 py-3 text-left">종목</th>
               <th className="px-4 py-3 text-right">현재가</th>
               <th className="px-4 py-3 text-right">평가금액</th>

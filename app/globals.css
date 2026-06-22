@@ -42,3 +42,18 @@ html.privacy-on .private-value {
 .value-in {
   animation: value-in 0.35s ease-out both;
 }
+
+/* 카드 공통 스타일 — bg-gray-900과 함께 사용 */
+.card {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255 255 255 / 0.06);
+}
+
+/* 섹션 레이블 — 작고 흐린 uppercase */
+.label {
+  font-size: 0.6875rem; /* 11px */
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgb(107 114 128); /* gray-500 */
+}

@@ -363,24 +363,24 @@ export default function DividendsPage() {
 
           {/* 요약 카드 */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <div className="bg-gray-900 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">전체 배당 합산</p>
-              <p className="text-lg font-bold text-yellow-400">
-                <span className="private-value">₩{fmt(Math.round(summary.totalCombined))}</span>
+            <div className="card bg-gray-900 p-5">
+              <p className="label mb-2">전체 배당 합산</p>
+              <p className="text-xl font-bold text-yellow-400">
+                <span className="private-value">{fmt(Math.round(summary.totalCombined))}원</span>
               </p>
               {usdKrw > 0 && summary.totalUSD > 0 && (
                 <p className="text-xs text-gray-600 mt-0.5">환율 {fmt(usdKrw)}원 기준</p>
               )}
             </div>
-            <div className="bg-gray-900 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">원화 배당 (KRW)</p>
-              <p className={`text-lg font-bold ${summary.totalKRW > 0 ? 'text-yellow-400' : 'text-gray-600'}`}>
-                <span className="private-value">₩{fmt(Math.round(summary.totalKRW))}</span>
+            <div className="card bg-gray-900 p-5">
+              <p className="label mb-2">원화 배당 (KRW)</p>
+              <p className={`text-xl font-bold ${summary.totalKRW > 0 ? 'text-yellow-400' : 'text-gray-600'}`}>
+                <span className="private-value">{fmt(Math.round(summary.totalKRW))}원</span>
               </p>
             </div>
-            <div className="bg-gray-900 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">달러 배당 (USD)</p>
-              <p className={`text-lg font-bold ${summary.totalUSD > 0 ? 'text-yellow-400' : 'text-gray-600'}`}>
+            <div className="card bg-gray-900 p-5">
+              <p className="label mb-2">달러 배당 (USD)</p>
+              <p className={`text-xl font-bold ${summary.totalUSD > 0 ? 'text-yellow-400' : 'text-gray-600'}`}>
                 <span className="private-value">${summary.totalUSD.toFixed(2)}</span>
               </p>
             </div>
@@ -428,7 +428,7 @@ export default function DividendsPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="text-xs text-gray-500 border-b border-gray-800">
+                        <tr className="text-xs text-gray-500 border-b border-gray-800/50">
                           <th className="px-4 py-3 text-left">종목</th>
                           <th className="px-4 py-3 text-right">{currentYear}년 배당</th>
                           <th className="px-4 py-3 text-right">누적 배당</th>
