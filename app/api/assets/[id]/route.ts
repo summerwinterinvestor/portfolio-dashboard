@@ -27,6 +27,10 @@ export async function PUT(
     const body = await request.json();
     const { category, name, currency, value, valuedAt, memo } = body;
 
+    if (value !== undefined && Number(value) <= 0) {
+      return NextResponse.json({ error: '금액은 0보다 커야 합니다.' }, { status: 400 });
+    }
+
     const asset = await prisma.asset.update({
       where: { id },
       data: {

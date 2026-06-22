@@ -36,6 +36,8 @@ async function withConcurrency<T>(
 }
 
 type ViewMode = '전체' | '시장별' | '계좌별';
+type SortCol = 'value' | 'rate';
+type SortDir = 'asc' | 'desc';
 
 function fmt(n: number) { return (isFinite(n) ? n : 0).toLocaleString('ko-KR'); }
 function fmtPct(n: number) { return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`; }
@@ -65,16 +67,27 @@ function brokerColor(broker: string): string {
   return BROKER_COLORS[hash % BROKER_COLORS.length];
 }
 
-const TH = () => (
-  <tr className="text-xs text-gray-500 border-b border-gray-800/50">
-    <th className="px-4 py-3 text-left">종목</th>
-    <th className="px-4 py-3 text-right">현재가</th>
-    <th className="px-4 py-3 text-right">평가금액 (원화)</th>
-    <th className="px-4 py-3 text-right">수익률</th>
-    <th className="px-4 py-3 text-right">비중</th>
-    <th className="px-4 py-3" />
-  </tr>
-);
+function TH({ sortCol, sortDir, onSort }: { sortCol: SortCol; sortDir: SortDir; onSort: (col: SortCol) => void }) {
+  const Arrow = ({ col }: { col: SortCol }) => (
+    <span className={`ml-1 ${sortCol === col ? 'text-blue-400' : 'text-gray-700'}`}>
+      {sortCol === col ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
+    </span>
+  );
+  return (
+    <tr className="text-xs text-gray-500 border-b border-gray-800/50">
+      <th className="px-4 py-3 text-left">종목</th>
+      <th className="px-4 py-3 text-right">현재가</th>
+      <th className="px-4 py-3 text-right cursor-pointer select-none hover:text-gray-300" onClick={() => onSort('value')}>
+        평가금액 (원화)<Arrow col="value" />
+      </th>
+      <th className="px-4 py-3 text-right cursor-pointer select-none hover:text-gray-300" onClick={() => onSort('rate')}>
+        수익률<Arrow col="rate" />
+      </th>
+      <th className="px-4 py-3 text-right">비중</th>
+      <th className="px-4 py-3" />
+    </tr>
+  );
+}
 
 function Skeleton({ w = 'w-20' }: { w?: string }) {
   return <span className={`inline-block ${w} h-4 bg-gray-700/60 rounded animate-pulse`} />;
@@ -85,6 +98,13 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
   const [viewMode, setViewMode] = useState<ViewMode>('전체');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editingHolding, setEditingHolding] = useState<Holding | null>(null);
+  const [sortCol, setSortCol] = useState<SortCol>('value');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const handleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
+    else { setSortCol(col); setSortDir('desc'); }
+  };
   // undefined = 아직 조회 전, null = 조회 실패, PriceData = 성공
   const [priceMap, setPriceMap] = useState<Record<string, PriceData | null | undefined>>({});
   const [pricesLoading, setPricesLoading] = useState(holdings.length > 0);
@@ -163,7 +183,7 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
     const priceLoading = rawPrice === undefined && pricesLoading;
     const priceOk = price !== null && isFinite(price.currentPrice) && price.currentPrice > 0;
     const currentPrice = priceOk ? price.currentPrice : holding.avgPrice;
-    const fxRate = holding.currency === 'USD' ? (usdKrw || 1) : 1;
+    const fxRate = holding.currency === 'USD' ? usdKrw : 1;
     const currentValueKRW = holding.quantity * currentPrice * fxRate;
     const costBasisKRW = holding.quantity * holding.avgPrice * fxRate;
     const gainLossRate =
@@ -183,6 +203,9 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
   const prevTotalKRW = totalValueKRW - dailyGainKRW;
   const dailyGainRate = prevTotalKRW > 0 ? (dailyGainKRW / prevTotalKRW) * 100 : 0;
   const anyPriceFail = !pricesLoading && rows.some((r) => !r.priceOk);
+  const noFxRate = usdKrw === 0 && rows.some((r) => r.holding.currency === 'USD');
+  const hasDailyChange = rows.some((r) => r.priceOk && r.price && (r.price.change !== 0 || r.price.changeRate !== 0));
+  const totalGainLossKRW = totalValueKRW - totalCostKRW;
 
   // ── 전체 뷰: 티커별 합산 ──────────────────────────────────────
   type TickerGroup = {
@@ -222,7 +245,16 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
   for (const g of tickerMap.values()) {
     g.gainLossRate = g.totalCost > 0 ? ((g.totalValue - g.totalCost) / g.totalCost) * 100 : 0;
   }
-  const tickerGroups = Array.from(tickerMap.values()).sort((a, b) => b.totalValue - a.totalValue);
+  const tickerGroups = Array.from(tickerMap.values()).sort((a, b) => {
+    const v = sortCol === 'value' ? b.totalValue - a.totalValue : b.gainLossRate - a.gainLossRate;
+    return sortDir === 'desc' ? v : -v;
+  });
+  const maxTickerWeight = totalValueKRW > 0 && tickerGroups.length > 0
+    ? Math.max(...tickerGroups.map((g) => (g.totalValue / totalValueKRW) * 100))
+    : 1;
+  const maxRowWeight = totalValueKRW > 0 && rows.length > 0
+    ? Math.max(...rows.map((r) => (r.currentValueKRW / totalValueKRW) * 100))
+    : 1;
 
   // ── 시장별 뷰 ────────────────────────────────────────────────
   type MarketGroup = { label: string; market: string; rows: DashboardRow[]; subtotal: number; cost: number };
@@ -276,6 +308,7 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
         stockValueKRW={totalValueKRW}
         assets={assets}
         usdKrw={usdKrw}
+        pricesLoading={pricesLoading}
       />
 
       {/* 요약 카드 2×2 */}
@@ -297,22 +330,31 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
               : <span className="private-value value-in" style={{ animationDelay: '60ms' }}>{fmtPct(totalGainLossRate)}</span>
             }
           </p>
+          {!pricesLoading && (
+            <p className={`text-xs mt-1 private-value ${totalGainLossKRW >= 0 ? 'text-green-400/60' : 'text-red-400/60'}`}>
+              {totalGainLossKRW >= 0 ? '+' : '-'}{fmt(Math.round(Math.abs(totalGainLossKRW)))}원
+            </p>
+          )}
         </div>
         <div className="card bg-gray-900 p-5">
           <p className="label mb-2">일간 수익금</p>
-          <p className={`text-2xl font-bold ${dailyGainKRW >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <p className={`text-2xl font-bold ${!hasDailyChange ? 'text-gray-600' : dailyGainKRW >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             {pricesLoading
               ? <Skeleton w="w-28" />
-              : <span className="private-value value-in" style={{ animationDelay: '120ms' }}>{dailyGainKRW >= 0 ? '+' : '-'}{fmt(Math.round(Math.abs(dailyGainKRW)))}원</span>
+              : hasDailyChange
+              ? <span className="private-value value-in" style={{ animationDelay: '120ms' }}>{dailyGainKRW >= 0 ? '+' : '-'}{fmt(Math.round(Math.abs(dailyGainKRW)))}원</span>
+              : <span className="value-in" style={{ animationDelay: '120ms' }}>—</span>
             }
           </p>
         </div>
         <div className="card bg-gray-900 p-5">
           <p className="label mb-2">일간 수익률</p>
-          <p className={`text-2xl font-bold ${dailyGainRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <p className={`text-2xl font-bold ${!hasDailyChange ? 'text-gray-600' : dailyGainRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             {pricesLoading
               ? <Skeleton w="w-20" />
-              : <span className="private-value value-in" style={{ animationDelay: '180ms' }}>{fmtPct(dailyGainRate)}</span>
+              : hasDailyChange
+              ? <span className="private-value value-in" style={{ animationDelay: '180ms' }}>{fmtPct(dailyGainRate)}</span>
+              : <span className="value-in" style={{ animationDelay: '180ms' }}>—</span>
             }
           </p>
         </div>
@@ -350,7 +392,7 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
             /* ── 전체: 티커별 합산 + 아코디언 ── */
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><TH /></thead>
+                <thead><TH sortCol={sortCol} sortDir={sortDir} onSort={handleSort} /></thead>
                 <tbody>
                   {tickerGroups.map((g) => {
                     const isExpanded = expanded.has(g.ticker);
@@ -398,7 +440,10 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                             )}
                           </td>
                           <td className="px-4 py-3 text-right text-white">
-                            {g.priceLoading ? <Skeleton w="w-24" /> : <span className="private-value">₩{fmt(Math.round(g.totalValue))}</span>}
+                            {g.priceLoading ? <Skeleton w="w-24" /> : (usdKrw === 0 && g.currency === 'USD')
+                              ? <span className="text-gray-600">—</span>
+                              : <span className="private-value">₩{fmt(Math.round(g.totalValue))}</span>
+                            }
                           </td>
                           <td className="px-4 py-3 text-right">
                             {g.priceLoading ? <Skeleton w="w-16" /> : (
@@ -408,7 +453,15 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                             )}
                           </td>
                           <td className="px-4 py-3 text-right text-gray-300">
-                            {g.priceLoading ? <Skeleton w="w-10" /> : `${weight.toFixed(1)}%`}
+                            {g.priceLoading ? <Skeleton w="w-10" /> : (
+                              <div className="flex flex-col items-end gap-1">
+                                <span>{weight.toFixed(1)}%</span>
+                                <div className="w-14 h-1 bg-gray-800 rounded-full overflow-hidden">
+                                  <div className="h-full bg-blue-500/40 rounded-full transition-[width] duration-500"
+                                    style={{ width: `${maxTickerWeight > 0 ? (weight / maxTickerWeight) * 100 : 0}%` }} />
+                                </div>
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             {!multi && <ActionButtons holding={g.rows[0].holding} />}
@@ -426,7 +479,7 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                           return (
                             <tr
                               key={`sub-${row.holding.id}`}
-                              className="border-b border-gray-800/50/50 bg-gray-800/20 hover:bg-gray-800/40 transition-colors"
+                              className="border-b border-gray-800/50 bg-gray-800/20 hover:bg-gray-800/40 transition-colors"
                             >
                               <td className="px-4 py-2">
                                 <div className="flex items-start gap-3 pl-5 border-l-2 border-gray-700 ml-1">
@@ -443,7 +496,10 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                               </td>
                               <td className="px-4 py-2" />
                               <td className="px-4 py-2 text-right text-sm text-gray-300">
-                                {row.priceLoading ? <Skeleton w="w-20" /> : <span className="private-value">₩{fmt(Math.round(row.currentValueKRW))}</span>}
+                                {row.priceLoading ? <Skeleton w="w-20" /> : (usdKrw === 0 && row.holding.currency === 'USD')
+                                  ? <span className="text-gray-600">—</span>
+                                  : <span className="private-value">₩{fmt(Math.round(row.currentValueKRW))}</span>
+                                }
                               </td>
                               <td className="px-4 py-2 text-right">
                                 {row.priceLoading ? <Skeleton w="w-14" /> : (
@@ -488,9 +544,12 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
-                        <thead><TH /></thead>
+                        <thead><TH sortCol={sortCol} sortDir={sortDir} onSort={handleSort} /></thead>
                         <tbody>
-                          {[...mg.rows].sort((a, b) => b.currentValueKRW - a.currentValueKRW).map((row) => {
+                          {[...mg.rows].sort((a, b) => {
+                              const v = sortCol === 'value' ? b.currentValueKRW - a.currentValueKRW : b.gainLossRate - a.gainLossRate;
+                              return sortDir === 'desc' ? v : -v;
+                            }).map((row) => {
                             const weight = totalValueKRW > 0 ? (row.currentValueKRW / totalValueKRW) * 100 : 0;
                             const currentPrice = row.priceOk ? row.price!.currentPrice : row.holding.avgPrice;
                             return (
@@ -527,7 +586,10 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                                   )}
                                 </td>
                                 <td className="px-4 py-3 text-right text-white">
-                                  {row.priceLoading ? <Skeleton w="w-24" /> : <span className="private-value">₩{fmt(Math.round(row.currentValueKRW))}</span>}
+                                  {row.priceLoading ? <Skeleton w="w-24" /> : (usdKrw === 0 && row.holding.currency === 'USD')
+                                    ? <span className="text-gray-600">—</span>
+                                    : <span className="private-value">₩{fmt(Math.round(row.currentValueKRW))}</span>
+                                  }
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   {row.priceLoading ? <Skeleton w="w-16" /> : (
@@ -537,7 +599,15 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                                   )}
                                 </td>
                                 <td className="px-4 py-3 text-right text-gray-300">
-                                  {row.priceLoading ? <Skeleton w="w-10" /> : `${weight.toFixed(1)}%`}
+                                  {row.priceLoading ? <Skeleton w="w-10" /> : (
+                                    <div className="flex flex-col items-end gap-1">
+                                      <span>{weight.toFixed(1)}%</span>
+                                      <div className="w-14 h-1 bg-gray-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-blue-500/40 rounded-full transition-[width] duration-500"
+                                          style={{ width: `${maxRowWeight > 0 ? (weight / maxRowWeight) * 100 : 0}%` }} />
+                                      </div>
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="px-4 py-3"><ActionButtons holding={row.holding} /></td>
                               </tr>
@@ -575,9 +645,12 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
-                        <thead><TH /></thead>
+                        <thead><TH sortCol={sortCol} sortDir={sortDir} onSort={handleSort} /></thead>
                         <tbody>
-                          {[...ag.rows].sort((a, b) => b.currentValueKRW - a.currentValueKRW).map((row) => {
+                          {[...ag.rows].sort((a, b) => {
+                              const v = sortCol === 'value' ? b.currentValueKRW - a.currentValueKRW : b.gainLossRate - a.gainLossRate;
+                              return sortDir === 'desc' ? v : -v;
+                            }).map((row) => {
                             const weight = totalValueKRW > 0 ? (row.currentValueKRW / totalValueKRW) * 100 : 0;
                             const currentPrice = row.priceOk ? row.price!.currentPrice : row.holding.avgPrice;
                             return (
@@ -609,7 +682,10 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                                   )}
                                 </td>
                                 <td className="px-4 py-3 text-right text-white">
-                                  {row.priceLoading ? <Skeleton w="w-24" /> : <span className="private-value">₩{fmt(Math.round(row.currentValueKRW))}</span>}
+                                  {row.priceLoading ? <Skeleton w="w-24" /> : (usdKrw === 0 && row.holding.currency === 'USD')
+                                    ? <span className="text-gray-600">—</span>
+                                    : <span className="private-value">₩{fmt(Math.round(row.currentValueKRW))}</span>
+                                  }
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   {row.priceLoading ? <Skeleton w="w-16" /> : (
@@ -619,7 +695,15 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
                                   )}
                                 </td>
                                 <td className="px-4 py-3 text-right text-gray-300">
-                                  {row.priceLoading ? <Skeleton w="w-10" /> : `${weight.toFixed(1)}%`}
+                                  {row.priceLoading ? <Skeleton w="w-10" /> : (
+                                    <div className="flex flex-col items-end gap-1">
+                                      <span>{weight.toFixed(1)}%</span>
+                                      <div className="w-14 h-1 bg-gray-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-blue-500/40 rounded-full transition-[width] duration-500"
+                                          style={{ width: `${maxRowWeight > 0 ? (weight / maxRowWeight) * 100 : 0}%` }} />
+                                      </div>
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="px-4 py-3"><ActionButtons holding={row.holding} /></td>
                               </tr>
@@ -635,6 +719,11 @@ export default function DashboardTable({ holdings, usdKrw, assets, accounts }: P
           )}
         </div>
 
+        {noFxRate && (
+          <div className="mt-4 px-4 py-3 bg-yellow-900/30 border border-yellow-800/50 rounded-lg text-xs text-yellow-500">
+            환율 정보를 불러오지 못했습니다. 해외 주식은 평가금액 합산에서 제외됩니다.
+          </div>
+        )}
         {anyPriceFail && (
           <div className="mt-4 px-4 py-3 bg-yellow-900/30 border border-yellow-800/50 rounded-lg text-xs text-yellow-500">
             일부 종목의 시세 조회에 실패했습니다. 매입가 기준으로 표시합니다.

@@ -140,6 +140,14 @@ export default function HoldingForm({ editing, onDone, initialAccounts = [] }: P
       setError('종목, 수량, 매입가는 필수입니다.');
       return;
     }
+    if (parseFloat(form.quantity) <= 0) {
+      setError('수량은 0보다 커야 합니다.');
+      return;
+    }
+    if (parseFloat(form.avgPrice) <= 0) {
+      setError('매입가는 0보다 커야 합니다.');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {

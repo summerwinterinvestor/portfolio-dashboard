@@ -69,6 +69,11 @@ export default function AssetsPage() {
       setError('명칭과 금액은 필수입니다.');
       return;
     }
+    const valueNum = parseFloat(form.value);
+    if (isNaN(valueNum) || valueNum <= 0) {
+      setError('금액은 0보다 커야 합니다.');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
@@ -76,7 +81,7 @@ export default function AssetsPage() {
         category: form.category,
         name: form.name,
         currency: form.currency,
-        value: parseFloat(form.value),
+        value: valueNum,
         valuedAt: form.valuedAt,
         memo: form.memo || null,
       };
@@ -87,14 +92,20 @@ export default function AssetsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error('수정 실패');
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || '수정 실패');
+        }
       } else {
         const res = await fetch('/api/assets', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error('등록 실패');
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || '등록 실패');
+        }
       }
       setForm(emptyForm());
       setEditingId(null);
@@ -348,20 +359,20 @@ export default function AssetsPage() {
               </h2>
               <div className="flex items-center gap-3">
                 <div className="text-xs text-gray-500">
-                  {realEstateTotalKRW > 0 && <span className="mr-2 private-value">₩{fmt(realEstateTotalKRW)}</span>}
+                  {realEstateTotalKRW > 0 && <span className="mr-2 private-value">{fmt(realEstateTotalKRW)}원</span>}
                   {realEstateTotalUSD > 0 && <span className="private-value">${fmt(realEstateTotalUSD)}</span>}
                 </div>
                 <span className="text-gray-600 text-xs">{openSections.has('REAL_ESTATE') ? '▲' : '▼'}</span>
               </div>
             </button>
             {openSections.has('REAL_ESTATE') && (
-              <div className="border-t border-gray-800 p-4">
+              <div className="border-t border-gray-800/50 p-4">
                 {realEstateAssets.length === 0 ? (
                   <p className="text-center text-gray-600 text-sm py-4">등록된 부동산 자산이 없습니다.</p>
                 ) : (
                   <div className="space-y-3">
                     {realEstateAssets.map((asset) => (
-                      <AssetCard key={asset.id} asset={asset} onEdit={handleEdit} onDelete={handleDelete} />
+                      <AssetCard key={asset.id} asset={asset} isEditing={editingId === asset.id} onEdit={handleEdit} onDelete={handleDelete} />
                     ))}
                   </div>
                 )}
@@ -381,20 +392,20 @@ export default function AssetsPage() {
               </h2>
               <div className="flex items-center gap-3">
                 <div className="text-xs text-gray-500">
-                  {cashKRW > 0 && <span className="mr-2 private-value">₩{fmt(cashKRW)}</span>}
+                  {cashKRW > 0 && <span className="mr-2 private-value">{fmt(cashKRW)}원</span>}
                   {cashUSD > 0 && <span className="private-value">${fmt(cashUSD)}</span>}
                 </div>
                 <span className="text-gray-600 text-xs">{openSections.has('CASH') ? '▲' : '▼'}</span>
               </div>
             </button>
             {openSections.has('CASH') && (
-              <div className="border-t border-gray-800 p-4">
+              <div className="border-t border-gray-800/50 p-4">
                 {cashAssets.length === 0 ? (
                   <p className="text-center text-gray-600 text-sm py-4">등록된 현금 자산이 없습니다.</p>
                 ) : (
                   <div className="space-y-3">
                     {cashAssets.map((asset) => (
-                      <AssetCard key={asset.id} asset={asset} onEdit={handleEdit} onDelete={handleDelete} />
+                      <AssetCard key={asset.id} asset={asset} isEditing={editingId === asset.id} onEdit={handleEdit} onDelete={handleDelete} />
                     ))}
                   </div>
                 )}
@@ -414,20 +425,20 @@ export default function AssetsPage() {
               </h2>
               <div className="flex items-center gap-3">
                 <div className="text-xs text-gray-500">
-                  {otherKRW > 0 && <span className="mr-2 private-value">₩{fmt(otherKRW)}</span>}
+                  {otherKRW > 0 && <span className="mr-2 private-value">{fmt(otherKRW)}원</span>}
                   {otherUSD > 0 && <span className="private-value">${fmt(otherUSD)}</span>}
                 </div>
                 <span className="text-gray-600 text-xs">{openSections.has('OTHER') ? '▲' : '▼'}</span>
               </div>
             </button>
             {openSections.has('OTHER') && (
-              <div className="border-t border-gray-800 p-4">
+              <div className="border-t border-gray-800/50 p-4">
                 {otherAssets.length === 0 ? (
                   <p className="text-center text-gray-600 text-sm py-4">등록된 기타 자산이 없습니다.</p>
                 ) : (
                   <div className="space-y-3">
                     {otherAssets.map((asset) => (
-                      <AssetCard key={asset.id} asset={asset} onEdit={handleEdit} onDelete={handleDelete} />
+                      <AssetCard key={asset.id} asset={asset} isEditing={editingId === asset.id} onEdit={handleEdit} onDelete={handleDelete} />
                     ))}
                   </div>
                 )}
@@ -447,20 +458,20 @@ export default function AssetsPage() {
               </h2>
               <div className="flex items-center gap-3">
                 <div className="text-xs text-red-400/70">
-                  {loanKRW > 0 && <span className="mr-2 private-value">-₩{fmt(loanKRW)}</span>}
+                  {loanKRW > 0 && <span className="mr-2 private-value">-{fmt(loanKRW)}원</span>}
                   {loanUSD > 0 && <span className="private-value">-${fmt(loanUSD)}</span>}
                 </div>
                 <span className="text-gray-600 text-xs">{openSections.has('LOAN') ? '▲' : '▼'}</span>
               </div>
             </button>
             {openSections.has('LOAN') && (
-              <div className="border-t border-gray-800 p-4">
+              <div className="border-t border-gray-800/50 p-4">
                 {loanAssets.length === 0 ? (
                   <p className="text-center text-gray-600 text-sm py-4">등록된 대출이 없습니다.</p>
                 ) : (
                   <div className="space-y-3">
                     {loanAssets.map((asset) => (
-                      <AssetCard key={asset.id} asset={asset} onEdit={handleEdit} onDelete={handleDelete} />
+                      <AssetCard key={asset.id} asset={asset} isEditing={editingId === asset.id} onEdit={handleEdit} onDelete={handleDelete} />
                     ))}
                   </div>
                 )}
@@ -475,15 +486,19 @@ export default function AssetsPage() {
 
 function AssetCard({
   asset,
+  isEditing,
   onEdit,
   onDelete,
 }: {
   asset: Asset;
+  isEditing: boolean;
   onEdit: (a: Asset) => void;
   onDelete: (id: string) => void;
 }) {
   return (
-    <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 hover:border-gray-700 transition-colors">
+    <div className={`bg-gray-800/50 rounded-xl p-4 transition-shadow ${
+      isEditing ? 'ring-2 ring-blue-400/40' : ''
+    }`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
@@ -508,7 +523,7 @@ function AssetCard({
           <p className={`text-base font-semibold mt-1 private-value ${asset.category === 'LOAN' ? 'text-red-400' : 'text-white'}`}>
             {asset.category === 'LOAN' ? '-' : ''}
             {asset.currency === 'KRW'
-              ? `₩${asset.value.toLocaleString('ko-KR')}`
+              ? `${asset.value.toLocaleString('ko-KR')}원`
               : `$${asset.value.toLocaleString('ko-KR')}`}
           </p>
           {asset.memo && (
@@ -522,13 +537,13 @@ function AssetCard({
           <div className="flex gap-2">
             <button
               onClick={() => onEdit(asset)}
-              className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-colors"
+              className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded bg-gray-700/60 hover:bg-gray-600 transition-colors"
             >
               수정
             </button>
             <button
               onClick={() => onDelete(asset.id)}
-              className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-colors"
+              className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded bg-gray-700/60 hover:bg-gray-600 transition-colors"
             >
               삭제
             </button>

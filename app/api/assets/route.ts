@@ -28,6 +28,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (Number(value) <= 0) {
+      return NextResponse.json({ error: '금액은 0보다 커야 합니다.' }, { status: 400 });
+    }
 
     const asset = await prisma.asset.create({
       data: {

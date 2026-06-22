@@ -304,13 +304,14 @@ export default function JournalPage() {
       [...trades]
         .filter((t) => !filterHoldingId || t.holdingId === filterHoldingId)
         .filter((t) => typeFilter === 'all' || t.type === typeFilter)
+        .filter((t) => isInPeriod(t.tradeDate, period, customFrom, customTo))
         .sort((a, b) => new Date(b.tradeDate).getTime() - new Date(a.tradeDate).getTime()),
-    [trades, filterHoldingId, typeFilter]
+    [trades, filterHoldingId, typeFilter, period, customFrom, customTo]
   );
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterHoldingId, typeFilter, pageSize]);
+  }, [filterHoldingId, typeFilter, pageSize, period, customFrom, customTo]);
 
   const totalPages = Math.ceil(filteredTrades.length / pageSize);
   const paginatedTrades = filteredTrades.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -748,11 +749,11 @@ export default function JournalPage() {
             return (
               <div
                 key={trade.id}
-                className={`bg-gray-900 rounded-xl p-4 border-l-4 ${
+                className={`bg-gray-900 rounded-xl p-4 border-l-4 transition-shadow ${
                   trade.type === 'BUY'
                     ? 'border-blue-500'
                     : 'border-red-500'
-                }`}
+                }${trade.id === editingId ? ' ring-2 ring-blue-400/50' : ''}`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
