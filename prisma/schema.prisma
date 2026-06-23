@@ -15,6 +15,7 @@ model Account {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   holdings  Holding[]
+  trades    Trade[]
 }
 
 model Holding {
@@ -40,6 +41,8 @@ model Trade {
   id        String   @id @default(cuid())
   holdingId String
   holding   Holding  @relation(fields: [holdingId], references: [id])
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id])
   type      String   // BUY | SELL
   quantity  Float
   price     Float

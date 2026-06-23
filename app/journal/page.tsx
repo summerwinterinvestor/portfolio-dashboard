@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import type { Trade, Holding } from '@/types';
+import type { Trade, Holding, Account } from '@/types';
 import HoldingPicker from '@/components/HoldingPicker';
 import JournalStockPicker from '@/components/JournalStockPicker';
+import AccountPicker from '@/components/AccountPicker';
 
 interface PnLEntry {
   realizedPnl: number;
@@ -107,6 +108,7 @@ type TradeForm = {
   fee: string;
   tradeDate: string;
   thesis: string;
+  accountId: string | null;
 };
 
 const emptyForm = (): TradeForm => ({
@@ -117,6 +119,7 @@ const emptyForm = (): TradeForm => ({
   fee: '',
   tradeDate: new Date().toISOString().split('T')[0],
   thesis: '',
+  accountId: null,
 });
 
 function fmt(n: number) {
@@ -133,9 +136,11 @@ function formatDate(dateStr: string) {
 
 export default function JournalPage() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterHoldingId, setFilterHoldingId] = useState('');
+  const [filterAccountId, setFilterAccountId] = useState('');
   const [form, setForm] = useState<TradeForm>(emptyForm());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -153,13 +158,15 @@ export default function JournalPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [hRes, tRes, fxRes] = await Promise.all([
+      const [hRes, tRes, fxRes, aRes] = await Promise.all([
         fetch('/api/holdings'),
         fetch('/api/trades'),
         fetch('/api/kis/fx'),
+        fetch('/api/accounts'),
       ]);
       if (hRes.ok) setHoldings(await hRes.json());
       if (tRes.ok) setTrades(await tRes.json());
+      if (aRes.ok) setAccounts(await aRes.json());
       if (fxRes.ok) {
         const fx = await fxRes.json();
         if (fx?.usdKrw) setUsdKrw(fx.usdKrw);
@@ -197,6 +204,7 @@ export default function JournalPage() {
         fee: form.fee ? parseFloat(form.fee) : null,
         tradeDate: form.tradeDate,
         thesis: form.thesis || null,
+        accountId: form.accountId,
       };
 
       if (editingId) {
@@ -237,6 +245,7 @@ export default function JournalPage() {
       fee: String(trade.fee ?? ''),
       tradeDate: trade.tradeDate.split('T')[0],
       thesis: trade.thesis ?? '',
+      accountId: trade.accountId,
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -303,15 +312,16 @@ export default function JournalPage() {
     () =>
       [...trades]
         .filter((t) => !filterHoldingId || t.holdingId === filterHoldingId)
+        .filter((t) => !filterAccountId || t.accountId === filterAccountId)
         .filter((t) => typeFilter === 'all' || t.type === typeFilter)
         .filter((t) => isInPeriod(t.tradeDate, period, customFrom, customTo))
         .sort((a, b) => new Date(b.tradeDate).getTime() - new Date(a.tradeDate).getTime()),
-    [trades, filterHoldingId, typeFilter, period, customFrom, customTo]
+    [trades, filterHoldingId, filterAccountId, typeFilter, period, customFrom, customTo]
   );
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterHoldingId, typeFilter, pageSize, period, customFrom, customTo]);
+  }, [filterHoldingId, filterAccountId, typeFilter, pageSize, period, customFrom, customTo]);
 
   const totalPages = Math.ceil(filteredTrades.length / pageSize);
   const paginatedTrades = filteredTrades.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -435,6 +445,18 @@ export default function JournalPage() {
                 onChange={(e) => setForm((f) => ({ ...f, fee: e.target.value }))}
                 placeholder="0"
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            {/* 계좌 선택 */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">계좌 (선택)</label>
+              <AccountPicker
+                accounts={accounts}
+                value={form.accountId}
+                onChange={(id) => setForm((f) => ({ ...f, accountId: id }))}
+                onAccountCreated={(acc) => setAccounts((prev) => [...prev, acc])}
+                onAccountDeleted={(id) => setAccounts((prev) => prev.filter((a) => a.id !== id))}
               />
             </div>
 
@@ -707,25 +729,51 @@ export default function JournalPage() {
             </div>
           </div>
         </div>
-        {/* 2행: 종목 필터 */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-500 shrink-0">종목:</label>
-          <div className="w-52">
-            <HoldingPicker
-              holdings={holdings}
-              value={filterHoldingId}
-              onChange={setFilterHoldingId}
-              placeholder="전체 (종목명 입력)"
-            />
+        {/* 2행: 종목 + 계좌 필터 */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500 shrink-0">종목:</label>
+            <div className="w-48">
+              <HoldingPicker
+                holdings={holdings}
+                value={filterHoldingId}
+                onChange={setFilterHoldingId}
+                placeholder="전체 (종목명 입력)"
+              />
+            </div>
+            {filterHoldingId && (
+              <button
+                type="button"
+                onClick={() => setFilterHoldingId('')}
+                className="text-xs text-gray-500 hover:text-gray-300"
+              >
+                초기화
+              </button>
+            )}
           </div>
-          {filterHoldingId && (
-            <button
-              type="button"
-              onClick={() => setFilterHoldingId('')}
-              className="text-xs text-gray-500 hover:text-gray-300"
-            >
-              초기화
-            </button>
+          {accounts.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-500 shrink-0">계좌:</label>
+              <select
+                value={filterAccountId}
+                onChange={(e) => setFilterAccountId(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="">전체</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.broker} {a.name}</option>
+                ))}
+              </select>
+              {filterAccountId && (
+                <button
+                  type="button"
+                  onClick={() => setFilterAccountId('')}
+                  className="text-xs text-gray-500 hover:text-gray-300"
+                >
+                  초기화
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -757,7 +805,7 @@ export default function JournalPage() {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span
                         className={`text-xs font-bold px-2 py-0.5 rounded ${
                           trade.type === 'BUY'
@@ -773,6 +821,11 @@ export default function JournalPage() {
                       <span className="text-xs text-gray-500">
                         {holding?.ticker}
                       </span>
+                      {trade.account && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400">
+                          {trade.account.broker} {trade.account.name}
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-gray-300">
                       {fmt(trade.quantity)}주 ×{' '}

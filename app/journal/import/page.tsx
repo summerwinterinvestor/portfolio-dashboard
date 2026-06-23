@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Holding } from '@/types';
+import type { Holding, Account } from '@/types';
 
 // ── CSV 파싱 ────────────────────────────────────────────────────────
 
@@ -81,6 +81,8 @@ export default function ImportPage() {
   const [step, setStep] = useState<Step>('upload');
   const [parsed, setParsed] = useState<ParsedTrade[]>([]);
   const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [importAccountId, setImportAccountId] = useState<string>('');
   const [mapping, setMapping] = useState<Record<string, MappingValue>>({});
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
@@ -90,6 +92,7 @@ export default function ImportPage() {
 
   useEffect(() => {
     fetch('/api/holdings').then((r) => r.json()).then(setHoldings).catch(() => {});
+    fetch('/api/accounts').then((r) => r.json()).then(setAccounts).catch(() => {});
   }, []);
 
   // ── 파일 업로드 ──────────────────────────────────────────────────
@@ -181,6 +184,7 @@ export default function ImportPage() {
           price: t.price,
           tradeDate: t.date,
           fee: t.fee,
+          accountId: importAccountId || null,
         }));
 
       const res = await fetch('/api/trades/import', {
@@ -255,6 +259,22 @@ export default function ImportPage() {
 
       {/* ── Step 1: 업로드 ── */}
       {step === 'upload' && (
+        <div className="space-y-4">
+        {accounts.length > 0 && (
+          <div className="bg-gray-900 rounded-xl p-4">
+            <label className="block text-xs text-gray-500 mb-2">계좌 지정 (선택) — 가져오는 모든 거래에 적용</label>
+            <select
+              value={importAccountId}
+              onChange={(e) => setImportAccountId(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+            >
+              <option value="">계좌 없음</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.broker} {a.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div
           className="border-2 border-dashed border-gray-700 rounded-xl p-12 text-center cursor-pointer hover:border-gray-500 transition-colors"
           onClick={() => fileRef.current?.click()}
@@ -277,6 +297,7 @@ export default function ImportPage() {
               if (file) handleFile(file);
             }}
           />
+        </div>
         </div>
       )}
 

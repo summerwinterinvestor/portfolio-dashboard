@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
         holding: {
           select: { ticker: true, name: true, market: true, currency: true },
         },
+        account: {
+          select: { id: true, broker: true, name: true },
+        },
       },
       orderBy: { tradeDate: 'desc' },
     });
@@ -25,7 +28,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { holdingId, type, quantity, price, tradeDate, thesis, fee } = body;
+    const { holdingId, type, quantity, price, tradeDate, thesis, fee, accountId } = body;
 
     if (!holdingId || !type || quantity == null || price == null || !tradeDate) {
       return NextResponse.json(
@@ -67,6 +70,7 @@ export async function POST(request: NextRequest) {
         tradeDate: new Date(tradeDate),
         thesis: thesis ?? null,
         fee: fee != null ? Number(fee) : null,
+        accountId: accountId ?? null,
       },
     });
     return NextResponse.json(trade, { status: 201 });

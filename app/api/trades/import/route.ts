@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
         tradeDate: new Date(t.tradeDate),
         thesis: null,
         fee: t.fee != null ? Number(t.fee) : null,
+        accountId: t.accountId ?? null,
       })),
     });
 

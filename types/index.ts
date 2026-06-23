@@ -28,6 +28,8 @@ export interface Holding {
 export interface Trade {
   id: string;
   holdingId: string;
+  accountId: string | null;
+  account: { id: string; broker: string; name: string } | null;
   type: 'BUY' | 'SELL';
   quantity: number;
   price: number;

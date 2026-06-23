@@ -32,7 +32,7 @@ export async function PUT(
   const { id } = await params;
   try {
     const body = await request.json();
-    const { type, quantity, price, tradeDate, thesis, fee } = body;
+    const { type, quantity, price, tradeDate, thesis, fee, accountId } = body;
 
     const trade = await prisma.trade.update({
       where: { id },
@@ -43,6 +43,7 @@ export async function PUT(
         ...(tradeDate !== undefined && { tradeDate: new Date(tradeDate) }),
         ...(thesis !== undefined && { thesis }),
         ...('fee' in body && { fee: fee != null ? Number(fee) : null }),
+        ...('accountId' in body && { accountId: accountId ?? null }),
       },
     });
     return NextResponse.json(trade);
